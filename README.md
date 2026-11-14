@@ -2,7 +2,7 @@
 
 A separate, local-first offshoot of [tokenstretch](https://github.com/ExJtac/tokenstretch), with an isolated Python package, command, installation, and state directory. MIT licensed; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-**Not released yet.** Based on tokenstretch 0.9.6, MAX adds a local project map, verification gate, provider-neutral planner/runner, reusable procedures and optional local text assistance. MAX reports version `0.1.0.dev0`, identifying an unreleased development build. The GitHub repository and release installer are not published yet.
+**Development preview: `0.1.0.dev0`.** Based on tokenstretch 0.9.6, MAX adds a local project map, verification gate, provider-neutral planner/runner, reusable procedures and optional local text assistance. The source is available at [ExJtac/tokenstretch-max](https://github.com/ExJtac/tokenstretch-max). A stable release and pinned remote installer are not available yet.
 
 ## What works today
 
@@ -26,9 +26,11 @@ Existing tokenstretch state is not migrated or used. Both packages can be instal
 
 Python 3.11 or newer is required. Runtime uses only the standard library.
 
-Until a reviewed MAX release is published, run the local checkout directly:
+Clone the development preview, then run the checkout directly:
 
 ```bash
+git clone https://github.com/ExJtac/tokenstretch-max.git
+cd tokenstretch-max
 python3 -m tsmax --version
 python3 -m tsmax --help
 ```
@@ -125,7 +127,7 @@ Unrelated dirty work stays in place. Relevant dirty inputs, changed gate definit
 
 Build outputs are never applied back: `__pycache__`, `.pytest_cache`, `.ruff_cache`, `.mypy_cache`, `dist`, `build`, `coverage`, `.next`, `target`, `.eslintcache`, and `*.tsbuildinfo`. These exceptions do not permit dependency edits. Inspection remains bounded to 100,000 filesystem entries and depth 64; oversized projects stop explicitly. Eligible source is limited to 1 MB per file, supported static assets to 8 MB per file, and included content to 64 MB total. A task producing no source change requires review.
 
-Current execution profiles are locally verified for specific Claude Code and Codex CLI versions on macOS. Gemini CLI and Copilot CLI retain their adapters but do not yet have a verified Conductor execution profile. Missing tools, unsupported versions/platforms or unsafe startup configuration refuse before a model call. New adapters implement the same capability/request/response contract; tests exercise arbitrary provider IDs. No live model execution has been measured yet, and account/model availability remains unknown until an explicitly authorized call. Runtime stays Python standard library only.
+Current execution profiles are locally verified for specific Claude Code and Codex CLI versions on macOS. A private, live Codex CLI end-to-end test exercised planning, worker execution, the staging gate, reviewed application and verification in the original project. That test exposed a final-message parsing defect, which is fixed; recovery of its already-completed planning receipt required explicit local inspection. Gemini CLI and Copilot CLI retain their adapters but do not yet have a verified Conductor execution profile. Missing tools, unsupported versions/platforms or unsafe startup configuration refuse before a model call. New adapters implement the same capability/request/response contract; tests exercise arbitrary provider IDs. Account and model availability depend on the selected tool. Runtime stays Python standard library only.
 
 See the [Conductor design](docs/CONDUCTOR.md) and [decisions](docs/DECISIONS.md).
 
@@ -170,7 +172,9 @@ Only numeric loopback HTTP endpoints are accepted (default `http://127.0.0.1:114
 
 ## Measurements
 
-There are **no MAX savings or quality claims yet**. The deferred [map-only benchmark](docs/MAP-BENCH.md) uses the same task, provider/model, effort and acceptance checks, with and without the map, including map-building time. Later compare the same real multi-page build using a plain top model, tokenstretch and MAX. Record tokens, reported cost when available, wall time and quality; upstream measurements do not establish MAX results. Measurements do not block the provider-neutral build. We ask before starting live runs because they use your provider allowance.
+There are **no general MAX savings or quality claims yet**. Private engineering comparisons retain native usage receipts, failures, planning overhead and independent quality review. One paired run cannot establish a general savings claim; cached input and reasoning output are subsets, not extra tokens to add again. Missing effective-model or billing information stays unknown, and supervisor/review overhead must be reported separately when it cannot be isolated.
+
+The deferred [map-only benchmark](docs/MAP-BENCH.md) uses the same task, provider/model, effort and acceptance checks, with and without the map, including map-building time. Larger comparisons should use repeated, alternating pairs at fixed project commits. Upstream measurements do not establish MAX results. Live runs require authorization because they use your provider allowance; private source, logs and benchmark results are not published with this repository.
 
 ## Development
 
