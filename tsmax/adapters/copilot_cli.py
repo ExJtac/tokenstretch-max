@@ -87,6 +87,13 @@ class CopilotCliAdapter(DoctorOnlyAdapter):
     watch_hint = "per-turn data needs the local OTel file export: set COPILOT_OTEL_FILE_EXPORTER_PATH"
     # session.start data.context.cwd / workspace.yaml cwd tie sessions to a repo, so --measure can scope them.
 
+    def map_excluded_paths(self, ctx: Context) -> list[Path]:
+        return super().map_excluded_paths(ctx) + [
+            ctx.home / '.copilot',
+            ctx.root / '.github/copilot',
+            ctx.root / '.github/hooks',
+        ]
+
     def _home(self, ctx: Context) -> Path:
         val, _ = ctx.env_or_rc("COPILOT_HOME")
         return Path(val).expanduser() if val else ctx.home / ".copilot"

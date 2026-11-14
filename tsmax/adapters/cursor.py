@@ -23,6 +23,17 @@ class CursorAdapter(DoctorOnlyAdapter):
     # User Rules path and Privacy Mode setting key are not quoted — unverified.
     # The generic `agent` binary name is not used as a sole detect signal.
 
+    map_env_names = ('CURSOR_CONFIG_DIR',)
+
+    def map_excluded_paths(self, ctx: Context) -> list[Path]:
+        return super().map_excluded_paths(ctx) + [
+            ctx.home / '.cursor',
+            ctx.root / '.cursor',
+            ctx.home / 'Library/Application Support/Cursor',
+            ctx.home / '.config/Cursor',
+            ctx.home / 'AppData/Roaming/Cursor',
+        ]
+
     def _user_dir(self, ctx: Context) -> Path:
         # Official docs: ~/.cursor/cli-config.json, relocated by CURSOR_CONFIG_DIR.
         # The exact XDG_CONFIG_HOME subdirectory is not fully quoted; only CURSOR_CONFIG_DIR is honored.

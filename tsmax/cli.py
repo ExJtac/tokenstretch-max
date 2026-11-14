@@ -759,6 +759,9 @@ def main(argv=None) -> int:
     p.add_argument("--version", action="version", version=f"{PRODUCT_NAME} {VERSION}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
+    from .map_cli import add_parser as add_map_parser
+    add_map_parser(sub)
+
     d = sub.add_parser("doctor", help="read-only local audit (no network)")
     _add_context_args(d)
     d.add_argument("--json", action="store_true")
@@ -1109,6 +1112,9 @@ def main(argv=None) -> int:
     # ---- end pace parser ----
 
     a = p.parse_args(argv)
+    if a.cmd == "map":
+        from .map_cli import run as run_map
+        return run_map(a)
     if a.cmd == "doctor":
         return doctor(a)
     if a.cmd == "install":

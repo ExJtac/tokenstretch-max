@@ -1,5 +1,13 @@
 # tokenstretch MAX adapters
 
+## Project-map integration
+
+`map_excluded_paths(ctx)` returns paths to exclude before opening any project file. It must only compute paths from `Context` and approved relocation variables; do not call `config_locations`, which may inspect instructions. `map_env_names` lists additional relocation variables safe to pass into this context. Exclusions are reapplied on reads as well as builds.
+
+`plan_map_server(ctx, command)` returns planned file changes without applying them. Unsupported adapters raise `NotImplementedError`. Initially only Claude Code installs a project `.mcp.json` entry named `tsmax-map`; other servers are preserved, differing existing entries are refused, and JSON is read with bounds and no-follow operations. Changes include a preimage digest, `private=True` and `secure=True`; the installer checks again and backs up the change before replacement. Its generated launcher uses an absolute interpreter and isolated imports, so a project cannot shadow the MAX package through its working directory.
+
+The server accepts newline-delimited JSON-RPC over stdio, negotiates supported protocol versions (2024-11-05, 2025-03-26, 2025-06-18), and exposes only map query/status. It has no shell/write tools and binds no network port. Requests and replies are bounded. A missing map must be built explicitly outside MCP.
+
 The core (`doctor`, `bench`, `install` / `undo`) talks only to the `Adapter` interface in `tsmax/adapters/base.py`. Tool-specific paths, log formats, hook event names, and terms wording live in the adapter modules. The core must not hard-code them.
 
 v0.1 stays in Python and implements the Adapter interface below.

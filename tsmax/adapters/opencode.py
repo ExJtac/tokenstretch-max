@@ -156,6 +156,17 @@ class OpenCodeAdapter(DoctorOnlyAdapter):
     vendor_terms = "OpenCode (provider-dependent)"
     implemented_checks = frozenset({"W01", "W02", "T01", "T04", "P02", "P03"})
 
+    map_env_names = ('OPENCODE_CONFIG_DIR', 'OPENCODE_CONFIG', 'OPENCODE_DB', 'XDG_CONFIG_HOME', 'XDG_DATA_HOME')
+
+    def map_excluded_paths(self, ctx: Context) -> list[Path]:
+        return super().map_excluded_paths(ctx) + [
+            ctx.home / '.config/opencode',
+            ctx.home / '.local/share/opencode',
+            ctx.root / '.opencode',
+            ctx.root / 'opencode.json',
+            ctx.root / 'opencode.jsonc',
+        ]
+
     def detect(self, ctx: Context) -> DetectResult:
         binary = ctx.which("opencode")
         roots = []

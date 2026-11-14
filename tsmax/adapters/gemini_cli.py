@@ -117,6 +117,14 @@ class GeminiCliAdapter(DoctorOnlyAdapter):
     bench_key_env = "GEMINI_API_KEY"
     MID_MODEL = "flash"
 
+    map_env_names = ('GEMINI_CLI_SYSTEM_DEFAULTS_PATH', 'GEMINI_CLI_SYSTEM_SETTINGS_PATH')
+
+    def map_excluded_paths(self, ctx: Context) -> list[Path]:
+        return super().map_excluded_paths(ctx) + [
+            ctx.home / '.gemini',
+            ctx.root / '.gemini',
+        ]
+
     def _user_settings(self, ctx: Context) -> Path:
         return _gemini_dir(ctx) / "settings.json"
 

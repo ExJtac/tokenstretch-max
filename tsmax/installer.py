@@ -13,6 +13,7 @@ import hashlib
 import json
 import os
 import re
+import tempfile
 from dataclasses import asdict, dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -380,15 +381,14 @@ def _write_private(path: Path, data: bytes) -> None:
     For files that can hold keys, such as `~/.claude.json` and its copies: the file never exists
     with wider permissions, not even for a moment.
     """
-    tmp = path.with_name(path.name + ".tmp")
-    fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-    with os.fdopen(fd, "wb") as fh:
-        fh.write(data)
+    fd, name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=path.parent)
+    tmp = Path(name)
     try:
-        os.chmod(tmp, 0o600)                 # the temporary file may have been there already
-    except OSError:
-        pass
-    os.replace(tmp, path)
+        with os.fdopen(fd, "wb") as fh:
+            fh.write(data)
+        os.replace(tmp, path)
+    finally:
+        tmp.unlink(missing_ok=True)
 
 
 def _put(path: Path, data: bytes, private: bool) -> None:
@@ -401,12 +401,20 @@ def apply_changes(ctx: Context, changes: list[dict[str, str]], stamp: str | None
     A change with `"private": True` is for a file that can hold keys: the file, its backup and the
     copy of what was written are all created readable by the owner only, and undo keeps it so.
     """
+    secure = any(ch.get("secure") for ch in changes)
+    if secure and not all(ch.get("secure") for ch in changes):
+        raise ValueError("secure changes cannot be mixed with legacy changes")
+    from . import secure_files
+    def put(path, data, private):
+        secure_files.write_bytes(path, data) if secure else _put(path, data, private)
+    def mkdir(path):
+        secure_files.mkdir_parents(path) if secure else path.mkdir(parents=True, exist_ok=True)
     stamp = stamp or _now_stamp()
     root = kit_root(ctx)
     backup_dir = root / "backups" / stamp
     manifest_dir = root / "manifests"
-    backup_dir.mkdir(parents=True, exist_ok=True)
-    manifest_dir.mkdir(parents=True, exist_ok=True)
+    mkdir(backup_dir)
+    mkdir(manifest_dir)
     records = []
     dirs_created: list[str] = []
 
@@ -415,15 +423,17 @@ def apply_changes(ctx: Context, changes: list[dict[str, str]], stamp: str | None
         if not _writable(path, ctx):
             raise PermissionError(f"refusing to write outside the home/project tree: {path}")
         private = bool(ch.get("private"))
-        existed = path.is_file()
-        before = path.read_bytes() if existed else None
+        before = secure_files.read_bytes(path) if secure else (path.read_bytes() if path.is_file() else None)
+        existed = before is not None
         before_hash = sha256_bytes(before) if before is not None else None
+        if secure and ("preimage" not in ch or ch["preimage"] != before_hash):
+            raise ValueError("file changed since map change was planned")
         backup_rel = None
         if existed:
             backup_rel = _rel_backup_path(path, ctx.home, ctx.root)
             bpath = backup_dir / backup_rel
-            bpath.parent.mkdir(parents=True, exist_ok=True)
-            _put(bpath, before or b"", private)
+            mkdir(bpath.parent)
+            put(bpath, before or b"", private)
         # mkdir parents; record new directories
         parent = path.parent
         to_make = []
@@ -432,17 +442,20 @@ def apply_changes(ctx: Context, changes: list[dict[str, str]], stamp: str | None
             to_make.append(cursor)
             cursor = cursor.parent
         if not parent.exists():
-            parent.mkdir(parents=True, exist_ok=True)
+            mkdir(parent)
             dirs_created.extend(str(d) for d in reversed(to_make) if d not in [Path(x) for x in dirs_created])
             if str(parent) not in dirs_created:
                 dirs_created.append(str(parent))
         content = ch.get("content") or ""
         data = content.encode("utf-8") if isinstance(content, str) else content
-        _put(path, data, private)
+        if secure:
+            secure_files.write_bytes(path, data, expected_hash=before_hash)
+        else:
+            _put(path, data, private)
         mode = ch.get("mode")
-        if mode is not None:
+        if mode is not None and not secure:
             path.chmod(int(mode, 8) if isinstance(mode, str) else int(mode))
-        after_hash = sha256_bytes(path.read_bytes())
+        after_hash = sha256_bytes(data) if secure else sha256_bytes(path.read_bytes())
         kind = "created" if not existed else "modified"
         after_rel = None
         if path.suffix == ".json" and (private or len(data) <= AFTER_COPY_MAX):
@@ -450,8 +463,8 @@ def apply_changes(ctx: Context, changes: list[dict[str, str]], stamp: str | None
             # the file has changed since. Same content as the file itself, readable by the user only.
             after_rel = str(Path("after") / _rel_backup_path(path, ctx.home, ctx.root))
             apath = backup_dir / after_rel
-            apath.parent.mkdir(parents=True, exist_ok=True)
-            _write_private(apath, data)
+            mkdir(apath.parent)
+            put(apath, data, True)
         records.append({
             "path": str(path),
             "action": kind,
@@ -461,12 +474,14 @@ def apply_changes(ctx: Context, changes: list[dict[str, str]], stamp: str | None
             "after": after_rel,
             "reason": ch.get("reason") or "",
             **({"private": True} if private else {}),
+            **({"secure": True} if secure else {}),
         })
 
     manifest = {
         "product": PRODUCT_NAME,
         "version": VERSION,
         "profile": profile,
+        **({"secure": True} if secure else {}),
         "created_at": stamp,
         "backup_dir": str(backup_dir),
         "files": records,
@@ -475,7 +490,7 @@ def apply_changes(ctx: Context, changes: list[dict[str, str]], stamp: str | None
     if extra_manifest:
         manifest.update(extra_manifest)
     manifest_path = manifest_dir / f"{stamp}.json"
-    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    put(manifest_path, (json.dumps(manifest, indent=2) + "\n").encode("utf-8"), secure)
     return {"manifest_path": str(manifest_path), "backup_dir": str(backup_dir), "manifest": manifest}
 
 
@@ -500,9 +515,11 @@ def _key_level_undo(rec: dict, backup_dir: Path) -> dict | None:
     if path.suffix != ".json" or path.is_symlink():
         return None
     try:
-        current = _json_object(path.read_bytes())
-        before = _json_object((backup_dir / rec["backup"]).read_bytes()) if rec.get("backup") else {}
-        after = _json_object((backup_dir / rec["after"]).read_bytes()) if rec.get("after") else None
+        from .secure_files import read_bytes
+        read = read_bytes if rec.get("secure") else Path.read_bytes
+        current = _json_object(read(path))
+        before = _json_object(read(backup_dir / rec["backup"])) if rec.get("backup") else {}
+        after = _json_object(read(backup_dir / rec["after"])) if rec.get("after") else None
     except OSError:
         return None
     if current is None or before is None:
@@ -533,7 +550,24 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
     Any other changed file refuses the whole undo with `DriftError`, before anything is written.
     `force` skips both and restores every file whole, which discards later edits.
     """
-    data = json.loads(Path(manifest_path).read_text(encoding="utf-8"))
+    from . import secure_files
+    safe_supported = hasattr(os, "O_NOFOLLOW") and os.open in os.supports_dir_fd
+    raw_manifest = secure_files.read_bytes(Path(manifest_path)) if safe_supported else Path(manifest_path).read_bytes()
+    if raw_manifest is None:
+        raise FileNotFoundError(manifest_path)
+    data = json.loads(raw_manifest)
+    secure = bool(data.get("secure"))
+    if secure and not safe_supported:
+        raise OSError("secure map undo is unavailable on this platform")
+    def read(path):
+        return secure_files.read_bytes(path) if secure else path.read_bytes()
+    def put(path, content, private, expected):
+        if secure:
+            secure_files.write_bytes(path, content, expected_hash=expected)
+        else:
+            _put(path, content, private)
+    def remove(path, expected):
+        secure_files.unlink(path, expected_hash=expected) if secure else path.unlink()
     backup_dir = Path(data["backup_dir"])
     restored: list[str] = []
     deleted: list[str] = []
@@ -541,8 +575,12 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
     refused: list[str] = []
     partial: list[str] = []
     by_key: dict[str, dict] = {}
+    by_key_hash: dict[str, str | None] = {}
 
     def current_hash(path: Path) -> str | None:
+        if secure:
+            raw = read(path)
+            return sha256_bytes(raw) if raw is not None else None
         return sha256_file(path)
 
     # Process files; refuse the whole undo if any drifted and not --force
@@ -563,6 +601,7 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
             merged = _key_level_undo(rec, backup_dir)
             if merged is not None:
                 by_key[rec["path"]] = merged
+                by_key_hash[rec["path"]] = actual
                 continue
             refused.append(rec["path"])
         if refused:
@@ -576,16 +615,18 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
         before = rec.get("sha256_before")
         action = rec.get("action")
         if str(path) in by_key:
+            if secure and actual != by_key_hash[str(path)]:
+                raise DriftError(str(path), by_key_hash[str(path)], actual)
             merged = by_key[str(path)]
             text = (json.dumps(merged, indent=2) + "\n").encode("utf-8")
             try:
                 if action == "created" and not merged:
-                    path.unlink()           # setup created it and nothing of the user's is in it
+                    remove(path, actual)    # setup created it and nothing of the user's is in it
                     deleted.append(str(path))
-                elif text == path.read_bytes():
+                elif text == read(path):
                     skipped.append(str(path))   # nothing of ours left in it
                 else:
-                    _put(path, text, bool(rec.get("private")))
+                    put(path, text, bool(rec.get("private")), actual)
                     partial.append(str(path))
             except OSError as exc:
                 raise RuntimeError(f"could not update {path}: {exc}") from exc
@@ -597,7 +638,7 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
             if not force and actual != expected:
                 raise DriftError(str(path), expected, actual)
             try:
-                path.unlink()
+                remove(path, actual)
                 deleted.append(str(path))
             except OSError as exc:
                 raise RuntimeError(f"could not delete {path}: {exc}") from exc
@@ -612,7 +653,10 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
                 raise RuntimeError(f"no backup recorded for {path}")
             bpath = backup_dir / backup_rel
             try:
-                _put(path, bpath.read_bytes(), bool(rec.get("private")))
+                content = read(bpath)
+                if content is None or (secure and sha256_bytes(content) != before):
+                    raise OSError("backup is missing or changed")
+                put(path, content, bool(rec.get("private")), actual)
             except OSError as exc:
                 raise RuntimeError(f"could not restore {path} from {bpath}: {exc}") from exc
             restored.append(str(path))
@@ -621,7 +665,9 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
     for d in reversed(data.get("dirs_created") or []):
         p = Path(d)
         try:
-            if p.is_dir() and not any(p.iterdir()):
+            if secure:
+                secure_files.unlink(p, directory=True)
+            elif p.is_dir() and not any(p.iterdir()):
                 p.rmdir()
         except OSError:
             pass
@@ -634,8 +680,10 @@ def latest_manifest(ctx: Context) -> Path | None:
     d = kit_root(ctx) / "manifests"
     if not d.is_dir():
         return None
-    files = sorted(d.glob("*.json"))
-    return files[-1] if files else None
+    files = [p for p in d.glob("*.json") if not p.is_symlink() and p.is_file()]
+    # Map runs use unique suffixes; filename order is not creation order within
+    # one second, and older manifests may use a different timezone.
+    return max(files, key=lambda p: (p.stat().st_mtime_ns, p.name)) if files else None
 
 
 @dataclass

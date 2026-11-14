@@ -90,6 +90,17 @@ class ClineAdapter(DoctorOnlyAdapter):
     implemented_checks = frozenset({"W01", "W02", "W06", "W18", "P02", "P03"})
     config_dir_env = ("CLINE_DATA_DIR", "CLINE_DIR", "CLINE_SESSION_DATA_DIR")
 
+    map_env_names = ('CLINE_GLOBAL_SETTINGS_PATH',)
+
+    def map_excluded_paths(self, ctx: Context) -> list[Path]:
+        return super().map_excluded_paths(ctx) + [
+            ctx.home / '.cline',
+            ctx.root / '.cline',
+            ctx.home / 'Library/Application Support/Code/User/globalStorage/saoudrizwan.claude-dev',
+            ctx.home / '.config/Code/User/globalStorage/saoudrizwan.claude-dev',
+            ctx.home / 'AppData/Roaming/Code/User/globalStorage/saoudrizwan.claude-dev',
+        ]
+
     def _global_rules_dirs(self, ctx: Context) -> list[Path]:
         """Same Documents path on every OS."""
         out: list[Path] = []

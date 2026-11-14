@@ -5,6 +5,9 @@
 - Create the isolated tokenstretch MAX (`tsmax`) foundation from tokenstretch 0.9.6.
 - Disable remote update checks and API-proxy installation in MAX.
 - Keep separate package, command, install directory, state, backups, and environment names.
+- Add a local incremental project map with Python symbols, approximate JavaScript/TypeScript extraction, bounded queries and freshness reports.
+- Add read-only stdio MCP and a backed-up Claude Code project integration, plus secure map-state writes and undo.
+- Revise the Conductor plan around independent map/gate releases, reviewed worktree changes, later local Ollama support and a map-only benchmark.
 
 The dated releases below are inherited upstream history, not MAX releases.
 

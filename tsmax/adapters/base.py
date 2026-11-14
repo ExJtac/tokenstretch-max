@@ -222,6 +222,7 @@ class Adapter:
     tier: int = 3                       # 1 = full, 2 = doctor-only, 3 = instruction advice
     vendor_terms: str = ""              # human-readable name of the vendor terms that apply
     config_dir_env: tuple[str, ...] = ()  # env vars that relocate this tool's home (multi-account detection)
+    map_env_names: tuple[str, ...] = ()  # path-only relocation variables for map exclusions
     headless_patterns: tuple[str, ...] = ()  # regexes matching scripted/headless invocations (warm-up timers)
 
     # ---- agents.md interface -----------------------------------------------------
@@ -285,6 +286,16 @@ class Adapter:
         if path is None or not path.is_file():
             raise FileNotFoundError(f"no install manifest to undo: {path or 'none recorded'}")
         return undo_manifest(path)
+
+    def map_excluded_paths(self, ctx: Context) -> list[Path]:
+        """Provider-owned locations excluded before indexing; never opens a file."""
+        paths = [Path(ctx.env[name]).expanduser() for name in (*self.config_dir_env, *self.map_env_names)
+                 if ctx.env.get(name)]
+        return [path if path.is_absolute() else ctx.root / path for path in paths]
+
+    def plan_map_server(self, ctx: Context, command: list[str]) -> list[dict]:
+        """Plan a read-only stdio map integration; never writes configuration."""
+        raise NotImplementedError(f"map integration is not supported for {self.id}")
 
     # ---- discovery (compat helpers used by doctor) --------------------------------
     def config_locations(self, ctx: Context) -> list[ConfigLocation]:

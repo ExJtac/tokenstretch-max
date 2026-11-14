@@ -167,6 +167,17 @@ class HostAdapter(Adapter):
         "P01", "P02", "P03", "P04", "P06",
     })
 
+    map_env_names = ('TOKENECONOMIZER_HOME',)
+
+    def map_excluded_paths(self, ctx: Context) -> list[Path]:
+        return super().map_excluded_paths(ctx) + [
+            ctx.home / '.caveman',
+            ctx.home / '.cache/anthropic',
+            ctx.home / '.config/rtk',
+            ctx.home / '.tokeneconomizer',
+            ctx.home / '.claude-mem',
+        ]
+
     def detect(self, ctx: Context) -> DetectResult:
         return DetectResult(installed=True, auth_mode="local", config_roots=[str(ctx.home)])
 

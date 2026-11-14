@@ -28,6 +28,14 @@ class AiderAdapter(DoctorOnlyAdapter):
     display_name = "Aider"
     vendor_terms = "Aider (API keys)"
     implemented_checks = frozenset({"W01", "W06", "W09", "T04", "P01", "P03", "P05"})
+    def map_excluded_paths(self, ctx: Context) -> list[Path]:
+        return super().map_excluded_paths(ctx) + [
+            ctx.home / '.aider',
+            ctx.home / '.aider.conf.yml',
+            ctx.root / '.aider.conf.yml',
+            ctx.root / '.aider.chat.history.md',
+        ]
+
     def _git_root(self, start: Path) -> Path | None:
         cur = start
         for _ in range(64):

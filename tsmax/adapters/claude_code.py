@@ -491,6 +491,21 @@ class ClaudeCodeAdapter(Adapter):
     config_dir_env = ("CLAUDE_CONFIG_DIR",)
     headless_patterns = (r"\bclaude\b.*\s-p\b", r"\bclaude\b.*--print")
 
+    def plan_map_server(self, ctx: Context, command: list[str]) -> list[dict]:
+        # Official project-scope stdio MCP configuration; other servers stay unchanged.
+        from .map_support import json_server_change
+        return json_server_change(ctx.root / ".mcp.json", "tsmax-map", {
+            "type": "stdio", "command": command[0], "args": command[1:],
+        })
+
+    def map_excluded_paths(self, ctx: Context) -> list[Path]:
+        return super().map_excluded_paths(ctx) + [
+            ctx.home / '.claude',
+            ctx.home / '.claude.json',
+            ctx.root / '.claude',
+            ctx.root / '.mcp.json',
+        ]
+
     def detect(self, ctx: Context) -> DetectResult:
         binary = ctx.which("claude")
         roots = [str(p) for p in (

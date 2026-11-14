@@ -109,6 +109,12 @@ class CodexAdapter(Adapter):
     config_dir_env = ("CODEX_HOME",)
     headless_patterns = (r"\bcodex\b.*\bexec\b",)
 
+    def map_excluded_paths(self, ctx: Context) -> list[Path]:
+        return super().map_excluded_paths(ctx) + [
+            ctx.home / '.codex',
+            ctx.root / '.codex',
+        ]
+
     def detect(self, ctx: Context) -> DetectResult:
         binary = ctx.which("codex")
         roots = [str(p) for p in (
