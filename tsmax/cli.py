@@ -765,6 +765,8 @@ def main(argv=None) -> int:
     add_verify_parser(sub)
     from .conductor_cli import add_parser as add_conductor_parser
     add_conductor_parser(sub)
+    from .patterns_cli import add_parser as add_patterns_parser
+    add_patterns_parser(sub)
 
     d = sub.add_parser("doctor", help="read-only local audit (no network)")
     _add_context_args(d)
@@ -1116,6 +1118,9 @@ def main(argv=None) -> int:
     # ---- end pace parser ----
 
     a = p.parse_args(argv)
+    if a.cmd == 'skills':
+        from .patterns_cli import run as run_patterns_cli
+        return run_patterns_cli(a)
     if a.cmd in {"plan", "run"}:
         from .conductor_cli import run as run_conductor_cli
         return run_conductor_cli(a)

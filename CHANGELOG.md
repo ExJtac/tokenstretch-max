@@ -11,6 +11,7 @@
 - Add preview-first `verify` with explicit command authorization, mandatory external-network isolation, bounded synchronous checks, content fingerprints, and private undoable results.
 - Add provider-neutral `plan`/`run`, typed official-CLI capabilities, bounded fresh tasks, persisted attempt caps, reviewed worktree changes and checks after application.
 - Preserve source permissions and support undoable deletions; prepare secure backups and the complete undo manifest before source mutations.
+- Add reviewed project-local solved patterns with historical verification evidence, backup/undo and bounded suggestions before planning.
 
 The dated releases below are inherited upstream history, not MAX releases.
 

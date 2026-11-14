@@ -2,7 +2,7 @@
 
 A separate, local-first offshoot of [tokenstretch](https://github.com/ExJtac/tokenstretch), with an isolated Python package, command, installation, and state directory. MIT licensed; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-**Not released yet.** Based on tokenstretch 0.9.6, MAX adds a local project map, verification gate and provider-neutral planner/runner. MAX reports version `0.1.0.dev0`, identifying an unreleased development build. The GitHub repository and release installer are not published yet.
+**Not released yet.** Based on tokenstretch 0.9.6, MAX adds a local project map, verification gate, provider-neutral planner/runner and reusable procedures. MAX reports version `0.1.0.dev0`, identifying an unreleased development build. The GitHub repository and release installer are not published yet.
 
 ## What works today
 
@@ -93,7 +93,7 @@ tsmax verify --run
 tsmax verify --check test '["python3","-m","pytest","-q"]' --run
 ```
 
-`--check KIND JSON_ARGV` supplies an exact command and replaces detected commands of that kind. Kinds are `test`, `lint`, `typecheck` and `acceptance`. Ambiguous or missing required commands need an explicit choice. MAX uses installed tools and does not install dependencies. Checks execute in the selected project directory; use `--root` to select another copy. They can change files, so review the preview first. The future task runner will supply a separate worktree.
+`--check KIND JSON_ARGV` supplies an exact command and replaces detected commands of that kind. Kinds are `test`, `lint`, `typecheck` and `acceptance`. Ambiguous or missing required commands need an explicit choice. MAX uses installed tools and does not install dependencies. Checks execute in the selected project directory; use `--root` to select another copy. They can change files, so review the preview first. The task runner supplies a separate staging worktree and checks the original project again after applying reviewed changes.
 
 Checks run with external networking blocked by the operating system and a temporary home with a reduced environment. Localhost is allowed where the platform supports it. If isolation cannot be established, verification stays incomplete. This is network isolation, not filesystem containment: authorized project code can access host files. Output and execution time are bounded; cleanup covers the process group. Use synchronous checks that wait for their children. Detached background jobs are unsupported, and MAX cannot certify that every descendant has exited.
 
@@ -127,7 +127,23 @@ Build outputs are never applied back: `__pycache__`, `.pytest_cache`, `.ruff_cac
 
 Current execution profiles are locally verified for specific Claude Code and Codex CLI versions on macOS. Gemini CLI and Copilot CLI retain their adapters but do not yet have a verified Conductor execution profile. Missing tools, unsupported versions/platforms or unsafe startup configuration refuse before a model call. New adapters implement the same capability/request/response contract; tests exercise arbitrary provider IDs. No live model execution has been measured yet, and account/model availability remains unknown until an explicitly authorized call. Runtime stays Python standard library only.
 
-Reusable approaches and optional installed local models are next. See the [Conductor design](docs/CONDUCTOR.md) and [decisions](docs/DECISIONS.md).
+See the [Conductor design](docs/CONDUCTOR.md) and [decisions](docs/DECISIONS.md).
+
+## Reuse a verified approach
+
+After a task passes verification in the original project, MAX offers a command to preview saving its approach:
+
+```bash
+tsmax skills save T1
+tsmax skills save T1 --apply --review EXACT_TOKEN_FROM_PREVIEW
+tsmax skills suggest "keyboard navigation"
+```
+
+The preview shows the procedure, applicability, limitations and original verification evidence. Explicit application writes private `pattern.json` and `SKILL.md` files under `.tsmax/skills/`, with backups and undo. Nothing is saved automatically. These project patterns work independently of a provider; export to a tool's user skill folder is not implemented.
+
+Saving preserves historical evidence. If later source changes differ from the verified snapshot, the preview and saved record say so; that does not establish current correctness. A failed task or missing verification record cannot supply a pattern. New planning includes at most three relevant, bounded summaries as reference material. Every new task still needs its own checks.
+
+Optional installed local text assistance follows.
 
 ## Privacy and boundaries
 

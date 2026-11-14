@@ -20,7 +20,7 @@ def add_parser(subparsers):
     authorization.add_argument('--execute', action='store_true', help='authorize bounded worker calls and the exact required project checks in the saved plan')
     authorization.add_argument('--apply', metavar='TASK', help='apply an exact reviewed task, then rerun its approved checks in the original project')
     run.add_argument('--review', help='exact review token shown with the verified diff; required with --apply')
-    run.add_argument('--max-calls', type=int, help='explicit persisted total worker call cap (1–72); retries/escalation count')
+    run.add_argument('--max-calls', type=int, help='persisted official CLI worker invocation cap (1–72), including retries; each invocation may contain multiple model turns')
     for parser in (plan, run):
         parser.add_argument('--root', type=Path)
         parser.add_argument('--home', type=Path)
@@ -56,6 +56,8 @@ def _display(result):
         print('Undo recorded change: tsmax undo ' + json.dumps(result['manifest_path']))
     if result.get('stage'):
         print('Retained worktree: ' + result['stage'])
+    if result.get('pattern_preview_command'):
+        print('Preview a reusable historical procedure (nothing is saved automatically): ' + result['pattern_preview_command'])
 
 
 def run(args):
