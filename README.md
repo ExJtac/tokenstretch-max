@@ -103,7 +103,7 @@ Private records live in `.tsmax/verify/`, with backups and undo. Exit codes are 
 
 ## Conductor plan
 
-Next comes a map-only benchmark before planning and execution. The first runner will use a separate Git worktree and ask before applying each task's verified changes; a worktree is not a sandbox. Later work adds reusable approaches and optional models already installed locally. See the revised [Conductor design](docs/CONDUCTOR.md) and [decisions](docs/DECISIONS.md). `tsmax plan` and `tsmax run` are not implemented yet.
+Next comes provider-neutral planning and execution. Each AI tool supplies its own adapter; the core has no Claude or other provider dependency. The first runner will use a separate Git worktree and ask before applying each task's verified changes; a worktree is not a sandbox. Later work adds reusable approaches and optional models already installed locally. See the revised [Conductor design](docs/CONDUCTOR.md) and [decisions](docs/DECISIONS.md). `tsmax plan` and `tsmax run` are not implemented yet.
 
 ## Privacy and boundaries
 
@@ -117,7 +117,7 @@ Next comes a map-only benchmark before planning and execution. The first runner 
 
 ## Measurements
 
-There are **no MAX savings or quality claims yet**. First, follow the [map-only benchmark](docs/MAP-BENCH.md): same task, model, effort and acceptance checks, with and without the map. Include map-building time. Later compare the same real multi-page build using a plain top model, tokenstretch and MAX. Record tokens, Claude Code list-price cost, wall time and quality; upstream measurements do not establish MAX results. We ask before starting live runs because they use your provider allowance.
+There are **no MAX savings or quality claims yet**. The deferred [map-only benchmark](docs/MAP-BENCH.md) uses the same task, provider/model, effort and acceptance checks, with and without the map, including map-building time. Later compare the same real multi-page build using a plain top model, tokenstretch and MAX. Record tokens, reported cost when available, wall time and quality; upstream measurements do not establish MAX results. Measurements do not block the provider-neutral build. We ask before starting live runs because they use your provider allowance.
 
 ## Development
 

@@ -1,12 +1,14 @@
 # tokenstretch MAX: Conductor design
 
-**Status: project map and standalone verification gate implemented; planning and execution follow the private map benchmark.** The foundation preserves upstream history and licensing while separating the `tsmax` package, command, and state from tokenstretch. Runtime stays Python 3.11+ and standard library only.
+**Status: project map and standalone verification gate implemented; provider-neutral planning and execution are next.** The owner deferred Claude-specific benchmark work so the main build proceeds independently of any one provider. The foundation preserves upstream history and licensing while separating the `tsmax` package, command, and state from tokenstretch. Runtime stays Python 3.11+ and standard library only.
 
 ## Flow and ownership
 
 `goal → skill suggestions + project map → top-model plan → fresh light/mid task → verify → done or escalate`
 
 Small core modules own indexing, planning, scheduling, verification, and patterns. Adapters own every provider-specific path, model choice, command, hook, and configuration change. Reuse the existing queue's claims and file-overlap checks, brief formatting, usage normalization, and installer manifests; do not replace those systems. Start with sequential tasks; concurrency requires disjoint file ownership and independent gates.
+
+The core has no preferred AI provider. Select a tool explicitly, negotiate its capabilities, and resolve light/mid/top models through that adapter. New providers implement the same request/response interface. Missing tools or unsupported permission modes are reported directly; never substitute another provider, model or weaker permission mode. Claude is one optional adapter, not a build dependency or reviewer. The map and verification gate require no AI at all.
 
 | Proposed command | Behavior |
 |---|---|
@@ -47,4 +49,4 @@ Optional offload uses installed local models and the same gate; never download a
 
 Ship separate tested commits: foundation, map, verify, plan/run, patterns, optional offload. Each reports normal and network-blocked suite counts and open issues. Tests use fake headless runners, credential canaries, stale-result checks, incremental-index cases, and undo/conflict scenarios. An unavailable network sandbox is reported as unverified, not a pass.
 
-Before plan/run, benchmark **the map alone**: identical task, repository, model, effort and acceptance checks, with versus without `map query`. Include build/query time and usage, fresh sessions, repeated paired trials and raw file-read/token evidence; see [MAP-BENCH.md](MAP-BENCH.md). Paid runs need separate approval. Later compare the full multi-page build using plain top model, tokenstretch and MAX. Report tokens, Claude Code list-price cost, wall time and quality separately from subscription charges; missing measurements stay unknown. Publish savings only from measured runs. Repository creation or push needs separate approval and a content/history privacy scan.
+Before making savings claims, benchmark **the map alone**: identical task, repository, selected provider/model, effort and acceptance checks, with versus without `map query`. This measurement is no longer a prerequisite for implementing plan/run. Include build/query time and usage, fresh sessions, repeated paired trials and raw file-read/token evidence; see [MAP-BENCH.md](MAP-BENCH.md). Paid runs need separate approval. Later compare the full multi-page build using plain top model, tokenstretch and MAX. Report tokens, provider-reported cost when available, wall time and quality separately from subscription charges; missing measurements stay unknown. Publish savings only from measured runs. Repository creation or push needs separate approval and a content/history privacy scan.

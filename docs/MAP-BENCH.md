@@ -1,8 +1,8 @@
 # Map-only benchmark protocol
 
-Status: methodology approved with the conditions below; the concrete trial budget still needs approval. No paid trials or savings measurements recorded.
+Status: deferred at the owner's direction to prioritize building MAX for any supported AI. No paid trials or savings measurements recorded. The paired methodology remains a future measurement protocol; neither a provider nor a trial budget is approved.
 
-Run this comparison before implementing plan/run. It isolates whether the map reduces repeated reading, without also changing the model or prompt quality.
+Run this comparison before making map savings claims. It isolates whether the map reduces repeated reading, without also changing the model or prompt quality. It does not block implementing plan/run and must work through the selected provider's adapter.
 
 1. Choose one of the owner's real web applications at a fixed Git commit and a **medium task expected to touch 5–15 files**, with known acceptance checks. Do not pad a small change with artificial files; record actual files touched. Freeze the task text, model, reasoning effort, CLI version, permissions, instruction files, available tools and dependency versions. Keep the project's identity, source, prompts, screenshots, diffs and results private, outside this repository.
 2. Prepare identical starting copies and at least three paired trials. Alternate which condition runs first. Use fresh sessions; do not reuse answers, handoffs or chat history. Record cache usage separately because a fresh session does not guarantee a cold provider cache.
@@ -17,7 +17,7 @@ Run this comparison before implementing plan/run. It isolates whether the map re
 
 The private run card must name the project/commit, task, expected file scope, acceptance checks, exact model and effort, and any baseline checks not yet verified. Before paid execution, verify the frozen source and synthetic-data test environment work without production access. If the baseline fails, stop before spending.
 
-A possible initial allowance is six calls with a $1 reported-cost threshold per call ($6 planned total), 25 turns and 15 minutes per call. These are **proposed thresholds, not an approved budget or guaranteed billing ceiling**. Claude Code's budget check can stop only after an in-flight turn has crossed its threshold; its reported cost is an estimate and may exclude helper calls. Disclose this before approval. If a guaranteed hard ceiling is required, do not run until a verified provider-enforced cap is available.
+The previously proposed Claude-specific allowance was six calls with a $1 reported-cost threshold per call ($6 planned total), 25 turns and 15 minutes per call. It is deferred and unapproved. Any future run card must use the selected provider's actual limit and accounting capabilities. Reported-cost thresholds are not guaranteed billing ceilings: an in-flight call may cross a threshold, and estimates may exclude helper calls. Disclose the concrete provider's limits before approval. If a guaranteed hard ceiling is required, do not run until a verified provider-enforced cap is available.
 
 Read the final cumulative cost once per run. Before starting another run, require enough remaining aggregate allowance for its full configured threshold; stop the batch after an overshoot, unknown cost, model mismatch, authentication problem, or unexpected external action. Do not replace failed or budget-exhausted trials with unapproved extra attempts. A timeout or exhausted budget is an incomplete result, not a pass.
 

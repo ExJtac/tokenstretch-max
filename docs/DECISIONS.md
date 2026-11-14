@@ -1,5 +1,9 @@
 # Conductor decisions
 
+## 2026-11-14 — Build for any supported AI; defer the Claude benchmark
+
+The owner clarified that Claude built the original tokenstretch but does not oversee or review MAX. MAX's map, gate, planner and scheduler must remain provider-neutral. Official CLI adapters own tool-specific behavior; new tools use the same capability and request/response contract. Defer Claude-specific benchmark preparation and proceed with plan/run using offline fake-provider tests. This supersedes the earlier benchmark-before-plan/run ordering, not the requirement for measured evidence before savings claims or explicit approval before paid calls.
+
 ## 2026-11-14 — Deliver the map and gate first
 
 Ship an independent project map, then an independent test gate. Planning and task execution depend on those milestones and a map-only benchmark. No model is needed to build or search the map.
