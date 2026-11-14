@@ -12,14 +12,14 @@ from pathlib import Path
 import pytest
 
 from conftest import copy_fixture
-from tokenstretch.adapters.base import HeadlessRefused
-from tokenstretch.adapters.copilot_cli import CopilotCliAdapter
-from tokenstretch.adapters.claude_code import ClaudeCodeAdapter
-from tokenstretch.adapters.codex import CodexAdapter
-from tokenstretch.adapters.cline import ClineAdapter
-from tokenstretch.adapters.host import HostAdapter
-from tokenstretch.adapters.opencode import OpenCodeAdapter
-from tokenstretch.bench import (
+from tsmax.adapters.base import HeadlessRefused
+from tsmax.adapters.copilot_cli import CopilotCliAdapter
+from tsmax.adapters.claude_code import ClaudeCodeAdapter
+from tsmax.adapters.codex import CodexAdapter
+from tsmax.adapters.cline import ClineAdapter
+from tsmax.adapters.host import HostAdapter
+from tsmax.adapters.opencode import OpenCodeAdapter
+from tsmax.bench import (
     FakeHeadlessRunner,
     HeadlessResult,
     LiveHeadlessRunner,
@@ -28,9 +28,9 @@ from tokenstretch.bench import (
     from_logs,
     live_bench,
 )
-from tokenstretch.context import build_context
-from tokenstretch.findings import UsageRecord
-from tokenstretch.usage import NO_MEASUREMENT, normalize_usage, open_sqlite_readonly, sqlite_ro_uri
+from tsmax.context import build_context
+from tsmax.findings import UsageRecord
+from tsmax.usage import NO_MEASUREMENT, normalize_usage, open_sqlite_readonly, sqlite_ro_uri
 
 REPO = Path(__file__).resolve().parents[1]
 LOGS = REPO / "tests" / "fixtures" / "logs"
@@ -154,7 +154,7 @@ def test_from_logs_empty_is_no_measurement(tmp_path):
 
 def test_cli_from_logs_and_requires_a_mode(tmp_path):
     dest = copy_fixture("clean", tmp_path)
-    from tokenstretch.cli import cmd_bench, main
+    from tsmax.cli import cmd_bench, main
 
     args = Namespace(
         home=dest / "home", root=dest / "root", sys_snapshot=dest / "sys",
@@ -373,7 +373,7 @@ def test_live_bench_uses_sandbox_and_fake_runner(tmp_path, monkeypatch):
         str(dest / "home") not in (c["cwd"] or "") or True  # cwd is sandbox repo
         for c in runner.calls
     )
-    from tokenstretch.identity import CLI_NAME
+    from tsmax.identity import CLI_NAME
     for c in runner.calls:
         assert Path(c["cwd"]).resolve() != (dest / "root").resolve()
         assert Path(c["env"]["HOME"]).resolve() != (dest / "home").resolve()
@@ -462,7 +462,7 @@ def test_api_key_values_never_appear_in_output(tmp_path, monkeypatch):
 
 
 def test_prepare_then_measure_from_scoped_logs(tmp_path, monkeypatch):
-    from tokenstretch.bench import format_prepare, measure_bench, prepare_bench
+    from tsmax.bench import format_prepare, measure_bench, prepare_bench
     dest = copy_fixture("clean", tmp_path)
     ctx = _ctx(dest)
     secret = "sk-ant-CANARY-PREPARE-SECRET"
@@ -482,7 +482,7 @@ def test_prepare_then_measure_from_scoped_logs(tmp_path, monkeypatch):
         assert "CODEX_HOME" not in item["cmd"]
         assert "--bare" not in item["argv"]
     # Real fixture home is untouched (prepare writes only under dest).
-    assert not (dest / "home" / ".tokenstretch" / "benches").exists() or True
+    assert not (dest / "home" / ".tsmax" / "benches").exists() or True
 
     # Plant scoped logs under the fixture home as if the user ran the official CLIs.
     import datetime

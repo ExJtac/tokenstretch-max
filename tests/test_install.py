@@ -16,8 +16,8 @@ import pytest
 
 from conftest import copy_fixture
 
-from tokenstretch.context import build_context
-from tokenstretch.installer import (
+from tsmax.context import build_context
+from tsmax.installer import (
     DriftError,
     check_licenses,
     detect_8787_conflict,
@@ -27,7 +27,7 @@ from tokenstretch.installer import (
     load_snapshots,
     undo_manifest,
 )
-from tokenstretch.runner import FakeRunner, LiveRunner, NetworkInstallRefused
+from tsmax.runner import FakeRunner, LiveRunner, NetworkInstallRefused
 
 
 def _ctx(dest: Path):
@@ -40,7 +40,7 @@ def _tree(root: Path) -> dict[str, bytes]:
     for p in root.rglob("*"):
         if not p.is_file():
             continue
-        if ".tokenstretch" in p.parts:
+        if ".tsmax" in p.parts:
             continue
         out[str(p.relative_to(root))] = p.read_bytes()
     return out
@@ -49,7 +49,7 @@ def _tree(root: Path) -> dict[str, bytes]:
 def _empty_dirs_outside_kit(root: Path) -> set[str]:
     empty = set()
     for p in root.rglob("*"):
-        if p.is_dir() and ".tokenstretch" not in p.parts and not any(p.iterdir()):
+        if p.is_dir() and ".tsmax" not in p.parts and not any(p.iterdir()):
             empty.add(str(p.relative_to(root)))
     return empty
 
@@ -98,7 +98,7 @@ def test_dry_run_default_writes_nothing_and_prints_plan(tmp_path):
 def test_cli_install_defaults_to_dry_run(tmp_path):
     dest = copy_fixture("clean", tmp_path)
     before = _tree(dest)
-    from tokenstretch.cli import cmd_install
+    from tsmax.cli import cmd_install
 
     args = Namespace(
         home=dest / "home",
@@ -174,11 +174,11 @@ def test_apply_undo_round_trip(tmp_path):
     assert "telemetry = false" in rtk
     te = json.loads((dest / "home" / ".tokeneconomizer" / "config.json").read_text(encoding="utf-8"))
     assert te == {"microskills": "off", "toolprune": "propose", "loopguard": "off"}
-    wrapper = (dest / "home" / ".tokenstretch" / "bin" / "ccusage").read_text(encoding="utf-8")
+    wrapper = (dest / "home" / ".tsmax" / "bin" / "ccusage").read_text(encoding="utf-8")
     assert "--offline" in wrapper and "20.0.48" in wrapper
     ccjson = json.loads((dest / "home" / ".claude" / "ccusage.json").read_text(encoding="utf-8"))
     assert ccjson == {"defaults": {"offline": True}}
-    lock = json.loads((dest / "home" / ".tokenstretch" / "ccusage" / "package-lock.json").read_text(encoding="utf-8"))
+    lock = json.loads((dest / "home" / ".tsmax" / "ccusage" / "package-lock.json").read_text(encoding="utf-8"))
     assert lock["packages"]["node_modules/ccusage"]["integrity"].startswith("sha512-8SKmBGO")
     settings = json.loads((dest / "home" / ".claude" / "settings.json").read_text(encoding="utf-8"))
     hook_blob = json.dumps(settings.get("hooks") or {})
@@ -190,7 +190,7 @@ def test_apply_undo_round_trip(tmp_path):
     assert not (dest / "home" / ".config" / "caveman").exists()
     assert not (dest / "home" / ".caveman").exists()
 
-    # Tree is different after apply (excluding .tokenstretch).
+    # Tree is different after apply (excluding .tsmax).
     assert _tree(dest) != before
 
     undone = undo_manifest(Path(applied.manifest_path), force=False)
@@ -316,7 +316,7 @@ def test_cli_undo_uses_latest_manifest(tmp_path):
     applied = install(ctx, apply=True, runner=FakeRunner())
     assert latest_manifest(ctx) == Path(applied.manifest_path)
 
-    from tokenstretch.cli import cmd_undo
+    from tsmax.cli import cmd_undo
 
     args = Namespace(
         home=dest / "home",
@@ -337,7 +337,7 @@ def test_cli_undo_uses_latest_manifest(tmp_path):
 
 
 def test_rtk_asset_allow_list_refuses_busl():
-    from tokenstretch.catalog import PinMismatchError, rtk_asset_allowed, rtk_asset_refusal, verify_rtk_asset
+    from tsmax.catalog import PinMismatchError, rtk_asset_allowed, rtk_asset_refusal, verify_rtk_asset
 
     assert rtk_asset_allowed("rtk-oss-x86_64-unknown-linux-musl.tar.gz")
     assert rtk_asset_allowed("rtk-oss_1.2.0-1_amd64.deb")
@@ -353,8 +353,8 @@ def test_rtk_asset_allow_list_refuses_busl():
 
 
 def test_hash_mismatch_refuses_and_writes_nothing(tmp_path):
-    from tokenstretch.catalog import PinMismatchError, RTK_INSTALL_SH_SHA256, verify_rtk_install_sh, verify_rtk_asset
-    from tokenstretch.installer import InstallArtifacts
+    from tsmax.catalog import PinMismatchError, RTK_INSTALL_SH_SHA256, verify_rtk_install_sh, verify_rtk_asset
+    from tsmax.installer import InstallArtifacts
 
     dest = copy_fixture("clean", tmp_path)
     ctx = _ctx(dest)
@@ -383,8 +383,8 @@ def test_hash_mismatch_refuses_and_writes_nothing(tmp_path):
 
 
 def test_caveman_sha_mismatch_refuses_and_skips_setup(tmp_path):
-    from tokenstretch.catalog import CAVEMAN_COMMIT, PinMismatchError, verify_commit
-    from tokenstretch.installer import InstallArtifacts
+    from tsmax.catalog import CAVEMAN_COMMIT, PinMismatchError, verify_commit
+    from tsmax.installer import InstallArtifacts
 
     dest = copy_fixture("clean", tmp_path)
     ctx = _ctx(dest)
@@ -430,7 +430,7 @@ def test_caveman_sha_mismatch_refuses_and_skips_setup(tmp_path):
 
 
 def test_te_clean_config_contents(tmp_path):
-    from tokenstretch.catalog import TE_CLEAN_CONFIG
+    from tsmax.catalog import TE_CLEAN_CONFIG
 
     dest = copy_fixture("clean", tmp_path)
     ctx = _ctx(dest)
@@ -531,7 +531,7 @@ def test_api_proxy_refuses_wildcard_bind(tmp_path):
 
 
 def test_headroom_lock_contains_pinned_wheel_hash():
-    from tokenstretch.catalog import (
+    from tsmax.catalog import (
         HEADROOM_WHEEL_SHA256_LINUX_X86_64,
         headroom_lock_contains_wheel_hash,
         headroom_packaged_lock,
@@ -571,7 +571,7 @@ def test_headroom_apply_uses_require_hashes_and_beacon_env(tmp_path):
     assert "8788" in " ".join(dry.notices) or "8788" in report
     assert "/v1" in " ".join(dry.notices) or "8787/v1" in report
 
-    from tokenstretch.api_proxy import HEADROOM_TELEMETRY_ENV, plan_proxy_file_changes
+    from tsmax.api_proxy import HEADROOM_TELEMETRY_ENV, plan_proxy_file_changes
     planned = plan_proxy_file_changes(ctx, "headroom", "127.0.0.1")
     settings = next(ch for ch in planned if Path(ch["path"]).as_posix().endswith("/.claude/settings.json"))
     env = json.loads(settings["content"]).get("env") or {}
@@ -601,109 +601,28 @@ def test_headroom_macos_below_14_refused(tmp_path):
     assert "not been install-tested" in blob or "not been install-tested on a real Mac" in blob
     applied = install(ctx, profile="api-proxy", proxy="headroom", apply=True, runner=FakeRunner())
     assert applied.ok is False
-    assert applied.exit_code == 1
+    assert applied.exit_code == 2
+    assert "disabled" in " ".join(applied.messages).lower()
     assert applied.written == []
     assert applied.manifest_path == ""
     assert _tree(dest) == before
 
 
-def test_headroom_apply_undo_round_trip_and_doctor(tmp_path):
+@pytest.mark.parametrize("profile", ["api-proxy", " API-PROXY ", "Api-Proxy"])
+def test_headroom_apply_is_disabled_before_fetch_or_write(tmp_path, profile):
     dest = copy_fixture("clean", tmp_path)
     ctx = _api_key_home(dest)
     before = _tree(dest)
-    before_empty = _empty_dirs_outside_kit(dest)
-    runner = FakeRunner()
-
-    applied = install(
-        ctx,
-        profile="api-proxy",
-        proxy="headroom",
-        apply=True,
-        runner=runner,
-    )
-    assert applied.ok is True
-    assert applied.dry_run is False
-    assert applied.exit_code == 0
-    assert applied.profile == "api-proxy"
-    assert applied.proxy == "headroom"
-    assert applied.written
-    assert applied.manifest_path
-    manifest = json.loads(Path(applied.manifest_path).read_text(encoding="utf-8"))
-    assert manifest["profile"] == "api-proxy"
-    assert manifest.get("proxy") == "headroom"
-    assert manifest.get("bind") == "127.0.0.1"
-
-    argv_blob = " ".join(" ".join(c.argv) for c in runner.calls)
-    env_blob = " ".join(f"{k}={v}" for c in runner.calls for k, v in (c.env or {}).items())
-    assert "--require-hashes" in argv_blob
-    assert "uv" in argv_blob and "pip" in argv_blob and "install" in argv_blob
-    assert "uv tool install" not in argv_blob
-    assert "UV_NO_PROGRESS" in env_blob
-    assert all(c.skipped for c in runner.calls)
-
-    settings_path = dest / "home" / ".claude" / "settings.json"
-    settings = json.loads(settings_path.read_text(encoding="utf-8"))
-    env = settings.get("env") or {}
-    assert env.get("ANTHROPIC_BASE_URL") == "http://127.0.0.1:8787"
-    assert env.get("HEADROOM_BEACON") == "off"
-    assert env.get("HEADROOM_UPDATE_CHECK") == "off"
-    assert "HEADROOM_ALLOW_UNAUTHENTICATED_BIND" not in env
-
-    codex_cfg = (dest / "home" / ".codex" / "config.toml").read_text(encoding="utf-8")
-    assert 'openai_base_url = "http://127.0.0.1:8787/v1"' in codex_cfg
-    assert 'openai_base_url = "http://127.0.0.1:8787"' not in codex_cfg
-
-    lock_path = dest / "home" / ".tokenstretch" / "headroom" / "requirements.txt"
-    assert lock_path.is_file()
-    assert "3b5c7fd289e7d227dcd9b896615541ea9d3d37388bd97b3257fc8769c4b7ef70" in lock_path.read_text(encoding="utf-8")
-    wrapper = dest / "home" / ".tokenstretch" / "bin" / "headroom"
-    assert wrapper.is_file()
-    body = wrapper.read_text(encoding="utf-8")
-    assert "tools/headroom/bin/headroom" in body
-
-    leaked = _blob_under(dest)
-    assert CANARY_ANTHROPIC not in leaked
-    assert CANARY_CODEX not in leaked
-
-    from tokenstretch.adapters import REGISTRY
-    from tokenstretch.util import is_loopback_url
-    from tokenstretch.adapters.host import _local_compression_proxy_label
-
-    assert is_loopback_url("http://127.0.0.1:8787/v1") is True
-    assert _local_compression_proxy_label("http://127.0.0.1:8787/v1")
-    fresh = _api_key_home(dest)
-    findings = []
-    for ad in REGISTRY:
-        if not ad.detect(fresh):
-            continue
-        findings += ad.checks(fresh) + ad.privacy_checks(fresh)
-    ids = {f.id for f in findings}
-    assert "W10" in ids
-    assert "P02" in ids
-    w10 = [f for f in findings if f.id == "W10"]
-    p02 = [f for f in findings if f.id == "P02"]
-    blob = " ".join(
-        (f.message or "") + " " + str((f.evidence or {}).get("value") or "")
-        for f in w10 + p02
-    )
-    assert "8787" in blob
-    assert any(
-        "8787/v1" in (f.message or "")
-        or str((f.evidence or {}).get("value") or "").endswith("/v1")
-        for f in w10 + p02
-    )
-    assert any(f.severity == "info" for f in p02)
-
-    undone = undo_manifest(Path(applied.manifest_path), force=False)
-    assert undone["restored"] or undone["deleted"]
-    assert _tree(dest) == before
-    assert _empty_dirs_outside_kit(dest) == before_empty
-    if settings_path.is_file():
-        after = settings_path.read_text(encoding="utf-8")
-        assert "ANTHROPIC_BASE_URL" not in after
-        assert "HEADROOM_BEACON" not in after
-    if (dest / "home" / ".codex" / "config.toml").is_file():
-        assert "8787/v1" not in (dest / "home" / ".codex" / "config.toml").read_text(encoding="utf-8")
+    for force, bypass in ((False, False), (True, True)):
+        runner = FakeRunner()
+        result = install(ctx, profile=profile, proxy="headroom", apply=True,
+                         runner=runner, force=force, allow_unpinned_for_tests=bypass)
+        assert not result.ok and result.exit_code == 2
+        assert "disabled" in " ".join(result.messages).lower()
+        assert not result.written and not result.manifest_path
+        assert runner.calls == []
+        assert _tree(dest) == before
+        assert not (dest / "home" / ".tsmax").exists()
 
 
 def test_api_proxy_not_part_of_clean(tmp_path):
@@ -726,7 +645,7 @@ def _pin_host(monkeypatch, system: str, machine: str = "x86_64", musl: bool = Fa
     import platform
     import sys
 
-    from tokenstretch import catalog
+    from tsmax import catalog
 
     monkeypatch.setattr(sys, "platform", system)
     monkeypatch.setattr(platform, "machine", lambda: machine)
@@ -742,120 +661,39 @@ def _pin_host(monkeypatch, system: str, machine: str = "x86_64", musl: bool = Fa
     ("win32", "AMD64", False, None),
 ])
 def test_kompressor_asset_per_platform(monkeypatch, system, machine, musl, expected):
-    from tokenstretch.catalog import KOMPRESSOR_SHA256, kompressor_asset_for_host
+    from tsmax.catalog import KOMPRESSOR_SHA256, kompressor_asset_for_host
     _pin_host(monkeypatch, system, machine, musl)
     asset = kompressor_asset_for_host()
     assert asset == (None if expected is None else (expected, KOMPRESSOR_SHA256[expected]))
 
 
-def test_kompressor_apply_undo_round_trip_and_doctor(tmp_path, monkeypatch):
-    _pin_host(monkeypatch, "linux")  # plans the Linux x86_64 gnu asset on any host
+@pytest.mark.parametrize("profile", ["api-proxy", " API-PROXY ", "Api-Proxy"])
+def test_kompressor_apply_is_disabled_before_fetch_or_write(tmp_path, profile):
     dest = copy_fixture("clean", tmp_path)
     ctx = _api_key_home(dest)
     before = _tree(dest)
-    before_empty = _empty_dirs_outside_kit(dest)
-    runner = FakeRunner()
-
-    applied = install(
-        ctx,
-        profile="api-proxy",
-        proxy="kompressor",
-        apply=True,
-        runner=runner,
-    )
-    assert applied.ok is True
-    assert applied.dry_run is False
-    assert applied.exit_code == 0
-    assert applied.profile == "api-proxy"
-    assert applied.proxy == "kompressor"
-    assert applied.written
-    assert applied.manifest_path
-    manifest = json.loads(Path(applied.manifest_path).read_text(encoding="utf-8"))
-    assert manifest["profile"] == "api-proxy"
-    assert manifest.get("proxy") == "kompressor"
-    assert manifest.get("bind") == "127.0.0.1"
-
-    settings_path = dest / "home" / ".claude" / "settings.json"
-    settings = json.loads(settings_path.read_text(encoding="utf-8"))
-    env = settings.get("env") or {}
-    assert env.get("ANTHROPIC_BASE_URL") == "http://127.0.0.1:8817"
-    assert env.get("KOMPRESSOR__SERVER__LISTEN") == "127.0.0.1:8817"
-    assert env.get("KOMPRESSOR__PROXY__WEBSOCKET_RELAY") == "false"
-    assert "KOMPRESSOR__PROXY__CACHE_KEEP_WARM" not in env
-    assert "KOMPRESSOR__PROXY__PROVIDERS__ANTHROPIC__CACHE_KEEP_WARM" not in env
-    assert "HTTPS_PROXY" not in env
-    assert "NODE_EXTRA_CA_CERTS" not in env
-    assert "0.0.0.0" not in json.dumps(settings)
-
-    hook_blob = json.dumps(settings.get("hooks") or {})
-    assert "rtk" in hook_blob
-
-    kcfg = (dest / "home" / ".config" / "kompressor" / "config.toml").read_text(encoding="utf-8")
-    assert 'listen = "127.0.0.1:8817"' in kcfg
-    assert "websocket_relay = false" in kcfg
-    assert "cache_keep_warm" not in kcfg
-    assert not any(line.strip() == "[proxy.intercept]" for line in kcfg.splitlines())
-    assert "/etc/kompressor" in kcfg  # comment warning only
-    assert "0.0.0.0" not in kcfg.split("[")[0] or "0.0.0.0:8817" in kcfg  # Dockerfile warning in comments is ok
-    # The listen value itself must not be 0.0.0.0
-    assert 'listen = "0.0.0.0' not in kcfg
-
-    codex_cfg = (dest / "home" / ".codex" / "config.toml").read_text(encoding="utf-8")
-    assert 'openai_base_url = "http://127.0.0.1:8817"' in codex_cfg
-
-    leaked = _blob_under(dest)
-    assert CANARY_ANTHROPIC not in leaked
-    assert CANARY_CODEX not in leaked
-
-    argv_blob = " ".join(" ".join(c.argv) for c in runner.calls)
-    assert "kompressor-1.5.14-x86_64-linux-gnu" in argv_blob
-    assert "github.com/hystax/optscale-kompressor/releases/download/1.5.14" in argv_blob
-    assert "docker" not in argv_blob.lower()
-    assert "0.0.0.0" not in argv_blob
-    # cargo is documented as a fallback, not the apply fetch
-    assert not any(c.argv and c.argv[0] == "cargo" for c in runner.calls)
-    assert all(c.skipped for c in runner.calls)
-
-    from tokenstretch.adapters import REGISTRY
-    fresh = _api_key_home(dest)
-    findings = []
-    for ad in REGISTRY:
-        if not ad.detect(fresh):
-            continue
-        findings += ad.checks(fresh) + ad.privacy_checks(fresh)
-    ids = {f.id for f in findings}
-    assert "W10" in ids
-    assert "P02" in ids
-    w10 = [f for f in findings if f.id == "W10"]
-    p02 = [f for f in findings if f.id == "P02"]
-    assert any("8817" in (f.message or "") for f in w10 + p02)
-    assert any(f.severity == "info" for f in p02)
-    # Relay is off, intercept is off, listen is loopback: no T01/P04 from those.
-    t01 = [f for f in findings if f.id == "T01" and "websocket_relay" in (f.message or "")]
-    assert t01 == []
-    p04_bad = [f for f in findings if f.id == "P04" and ("intercept" in (f.message or "").lower() or "0.0.0.0" in (f.message or ""))]
-    assert p04_bad == []
-
-    undone = undo_manifest(Path(applied.manifest_path), force=False)
-    assert undone["restored"] or undone["deleted"]
-    assert _tree(dest) == before
-    assert _empty_dirs_outside_kit(dest) == before_empty
-    if settings_path.is_file():
-        after = settings_path.read_text(encoding="utf-8")
-        assert "ANTHROPIC_BASE_URL" not in after
-        assert "KOMPRESSOR__SERVER__LISTEN" not in after
+    for force, bypass in ((False, False), (True, True)):
+        runner = FakeRunner()
+        result = install(ctx, profile=profile, proxy="kompressor", apply=True,
+                         runner=runner, force=force, allow_unpinned_for_tests=bypass)
+        assert not result.ok and result.exit_code == 2
+        assert "disabled" in " ".join(result.messages).lower()
+        assert not result.written and not result.manifest_path
+        assert runner.calls == []
+        assert _tree(dest) == before
+        assert not (dest / "home" / ".tsmax").exists()
 
 
 @pytest.mark.skipif(
     sys.platform == "win32", reason="Kompressor ships pinned binaries for Linux x86_64 and macOS only, none for Windows")
 def test_kompressor_hash_mismatch_refused(tmp_path):
-    from tokenstretch.catalog import (
+    from tsmax.catalog import (
         PinMismatchError,
         KOMPRESSOR_SHA256,
         kompressor_asset_for_host,
         verify_kompressor_asset,
     )
-    from tokenstretch.installer import InstallArtifacts
+    from tsmax.installer import InstallArtifacts
 
     dest = copy_fixture("clean", tmp_path)
     ctx = _api_key_home(dest)
@@ -879,12 +717,12 @@ def test_kompressor_hash_mismatch_refused(tmp_path):
         artifacts=InstallArtifacts(kompressor_binary=bad, kompressor_asset_name=name),
     )
     assert result.ok is False
-    assert result.exit_code == 1
+    assert result.exit_code == 2
     assert result.written == []
     assert result.manifest_path == ""
     assert runner.calls == []  # refused before fetch
     assert _tree(dest) == before
-    assert "does not match pinned" in " ".join(result.messages)
+    assert "disabled" in " ".join(result.messages).lower()
 
 
 def test_api_proxy_8787_clash(tmp_path):
@@ -915,13 +753,12 @@ def test_api_proxy_8787_clash(tmp_path):
     assert applied.exit_code == 2
     assert applied.written == []
     assert applied.manifest_path == ""
-    assert "Refusing --apply" in " ".join(applied.messages)
-    assert "8787" in " ".join(applied.messages)
+    assert "disabled" in " ".join(applied.messages).lower()
     assert _tree(dest) == before
 
 
 def test_api_proxy_license_snapshots_match_pins():
-    from tokenstretch.catalog import (
+    from tsmax.catalog import (
         HEADROOM_COMMIT,
         HEADROOM_SDIST_SHA256,
         KOMPRESSOR_COMMIT,
@@ -937,7 +774,7 @@ def test_api_proxy_license_snapshots_match_pins():
     snaps = load_snapshots()
     assert snaps["headroom"]["checksum"] == HEADROOM_SDIST_SHA256
     assert snaps["headroom"]["commit"] == HEADROOM_COMMIT
-    from tokenstretch.catalog import HEADROOM_WHEEL_SHA256_LINUX_X86_64, headroom_packaged_lock
+    from tsmax.catalog import HEADROOM_WHEEL_SHA256_LINUX_X86_64, headroom_packaged_lock
     assert HEADROOM_WHEEL_SHA256_LINUX_X86_64 in headroom_packaged_lock().read_text(encoding="utf-8")
     assert snaps["kompressor"]["commit"] == KOMPRESSOR_COMMIT
     assert snaps["kompressor"]["sha256_linux_musl"] == "4ec4db8e6e1b5ea2bc15f05b804e8c127233e876a92399a6b99ff40c40be17f1"
@@ -950,8 +787,8 @@ def test_cli_has_no_unpinned_bypass_and_refuses_both_proxies(tmp_path):
     if cred.exists():
         cred.unlink()
     import inspect
-    from tokenstretch import cli as cli_mod
-    from tokenstretch.cli import cmd_install
+    from tsmax import cli as cli_mod
+    from tsmax.cli import cmd_install
 
     src = inspect.getsource(cli_mod)
     assert "allow_unpinned_for_tests" not in src
@@ -975,12 +812,12 @@ def test_cli_has_no_unpinned_bypass_and_refuses_both_proxies(tmp_path):
         code = cmd_install(args)
     assert code == 2
     out = buf.getvalue() + err.getvalue()
-    assert "at most one" in out.lower() or "both" in out.lower()
+    assert "disabled" in out.lower()
     assert _tree(dest) == before
 
 
 def test_doctor_warns_kompressor_intercept_relay_and_non_loopback(tmp_path):
-    from tokenstretch.adapters.host import HostAdapter
+    from tsmax.adapters.host import HostAdapter
 
     dest = copy_fixture("clean", tmp_path)
     ctx = _api_key_home(dest)

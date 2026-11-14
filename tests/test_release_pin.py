@@ -11,8 +11,10 @@ from pathlib import Path
 
 import pytest
 
-import tokenstretch
-from tokenstretch.identity import VERSION
+import tsmax
+from tsmax.identity import PRODUCT_NAME, VERSION
+
+RELEASE_VERSION = "0.1.0"
 
 REPO = Path(__file__).resolve().parents[1]
 PIN = REPO / "scripts" / "release-pin.sh"
@@ -24,9 +26,9 @@ pytestmark = pytest.mark.skipif(shutil.which("git") is None or os.name != "posix
 
 def test_version_is_the_same_everywhere():
     py = tomllib.loads((REPO / "pyproject.toml").read_text())["project"]["version"]
-    assert py == VERSION == tokenstretch.__version__
-    out = subprocess.run([sys.executable, "-m", "tokenstretch", "--version"], capture_output=True, text=True, cwd=REPO)
-    assert out.stdout.strip() == f"tokenstretch {VERSION}"
+    assert py == VERSION == tsmax.__version__
+    out = subprocess.run([sys.executable, "-m", "tsmax", "--version"], capture_output=True, text=True, cwd=REPO)
+    assert out.stdout.strip() == f"{PRODUCT_NAME} {VERSION}"
     assert re.search(rf"^## \[{re.escape(VERSION)}\] - \d{{4}}-\d{{2}}-\d{{2}}$", (REPO / "CHANGELOG.md").read_text(), re.M)
 
 
@@ -55,6 +57,10 @@ def repo(tmp_path):
             dst = repo / rel.decode()
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
+    # A release fixture promotes the development version to a stable release.
+    for rel in ("pyproject.toml", "tsmax/identity.py", "CHANGELOG.md"):
+        target = repo / rel
+        target.write_text(target.read_text().replace(VERSION, RELEASE_VERSION))
     # Start from an unpinned script with the "Not released yet" line, like the release commit.
     script = repo / "scripts" / "install.sh"
     script.write_text(re.sub(r'^(TS_PIN_TAG|TS_PIN_COMMIT|TS_PIN_TARBALL_SHA256)="[^"]*"', r'\1=""',
@@ -69,9 +75,9 @@ def repo(tmp_path):
 
 
 def test_pin_from_local_tag_then_install_from_file_clone(tmp_path, repo):
-    tag = f"v{VERSION}"
+    tag = f"v{RELEASE_VERSION}"
     assert "no local tag" in _pin(repo, tag).stderr
-    _git(repo, "tag", "-a", tag, "-m", f"tokenstretch {VERSION}")
+    _git(repo, "tag", "-a", tag, "-m", f"{PRODUCT_NAME} {RELEASE_VERSION}")
     commit_a = _git(repo, "rev-parse", f"{tag}^{{commit}}").stdout.strip()
     dry = _pin(repo, tag, "--dry-run")
     assert dry.returncode == 0 and "Dry run" in dry.stdout and _git(repo, "status", "--porcelain").stdout == ""
@@ -92,9 +98,9 @@ def test_pin_from_local_tag_then_install_from_file_clone(tmp_path, repo):
                            "--source", f"file://{repo}"], env=env, capture_output=True, text=True)
     assert inst.returncode == 0, inst.stderr
     assert f"verified: HEAD is {commit_a}" in inst.stdout
-    out = subprocess.run([str(home / ".local" / "bin" / "tokenstretch"), "--version"], capture_output=True, text=True,
+    out = subprocess.run([str(home / ".local" / "bin" / "tsmax"), "--version"], capture_output=True, text=True,
                          env=env)
-    assert out.stdout.strip() == f"tokenstretch {VERSION}"
+    assert out.stdout.strip() == f"{PRODUCT_NAME} {RELEASE_VERSION}"
     # Later: add the GitHub tarball SHA-256 in its own commit.
     sha = "ab" * 32
     r = _pin(repo, tag, "--sha256", sha)
@@ -103,7 +109,7 @@ def test_pin_from_local_tag_then_install_from_file_clone(tmp_path, repo):
 
 
 def test_refusals(repo):
-    tag = f"v{VERSION}"
+    tag = f"v{RELEASE_VERSION}"
     _git(repo, "tag", "-a", tag, "-m", "x")
     (repo / "scratch.txt").write_text("dirty")
     assert "uncommitted changes" in _pin(repo, tag).stderr

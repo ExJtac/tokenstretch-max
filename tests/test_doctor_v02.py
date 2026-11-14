@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 
 from tests.conftest import copy_fixture, credential_guard, finding_ids, findings_with, run_doctor
-from tokenstretch.adapters import REGISTRY
-from tokenstretch.adapters.base import HeadlessRefused, HookPlan
-from tokenstretch.context import build_context
+from tsmax.adapters import REGISTRY
+from tsmax.adapters.base import HeadlessRefused, HookPlan
+from tsmax.context import build_context
 
 
 def _ad(aid: str):
@@ -149,7 +149,7 @@ def test_aider_fixture(tmp_path):
 def test_gemini_system_settings_env_walk_oauth_and_thinking(tmp_path):
     """System/env overrides, GEMINI.md walk + @imports, OAuth-by-stat, thinking ranges."""
     from tests.conftest import copy_fixture, credential_guard, CANARIES
-    from tokenstretch.context import build_context
+    from tsmax.context import build_context
     dest = copy_fixture("gemini", tmp_path / "syscase")
     sys_settings = dest / "sys" / "gemini-system-settings.json"
     sys_settings.write_text(
@@ -198,7 +198,7 @@ def test_gemini_system_settings_env_walk_oauth_and_thinking(tmp_path):
 
 def test_gemini_secret_env_is_not_expanded(tmp_path):
     from tests.conftest import copy_fixture, credential_guard
-    from tokenstretch.context import build_context
+    from tsmax.context import build_context
     dest = copy_fixture("gemini", tmp_path / "secret")
     settings = dest / "home" / ".gemini" / "settings.json"
     import json
@@ -222,7 +222,7 @@ def test_gemini_secret_env_is_not_expanded(tmp_path):
 
 def test_aider_config_precedence_and_env_override(tmp_path):
     from tests.conftest import copy_fixture, credential_guard
-    from tokenstretch.context import build_context
+    from tsmax.context import build_context
     dest = copy_fixture("aider", tmp_path / "prec")
     (dest / "home" / ".aider.conf.yml").write_text("model: from-home\ncheck-update: false\n", encoding="utf-8")
     # cwd already has a conf in the fixture; later (cwd) should win over home for YAML.
@@ -249,7 +249,7 @@ def test_aider_config_precedence_and_env_override(tmp_path):
 
 def test_cursor_never_opens_state_vscdb(tmp_path):
     from tests.conftest import copy_fixture, credential_guard
-    from tokenstretch.context import build_context
+    from tsmax.context import build_context
     dest = copy_fixture("cursor", tmp_path / "vscdb")
     db = dest / "home" / ".config" / "Cursor" / "User" / "globalStorage" / "state.vscdb"
     db.parent.mkdir(parents=True, exist_ok=True)

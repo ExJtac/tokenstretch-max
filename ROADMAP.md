@@ -1,17 +1,17 @@
 # Roadmap
 
 ## Done
-- ~~`status --watch`~~: shipped as `tokenstretch watch`, with once-per-session warnings for long history, the top model on simple steps, repeated file reads, and fast growth.
-- Smart model picker: `tokenstretch model suggest` (heuristic) and `tokenstretch model default` (backed up, undoable).
-- Weekly savings report: `tokenstretch report --weekly`.
-- Local dashboard: `tokenstretch dashboard` (loopback only, read-only, live).
-- Instruction-file trimmer: `tokenstretch trim` (dry run by default, safe mechanical edits only, backed up, undoable).
-- Status-bar line: `tokenstretch statusline` (history size and the most urgent watch warning).
-- Brief writer: `tokenstretch brief` (prompt generator and lint, local rules), and a `/brief` shortcut for Claude Code added by `setup`.
-- Start-up breakdown: `tokenstretch startup` (local parts sized, measured first step, the unsized rest).
-- Autopilot for Claude Code: automatic summaries at a set size, shaped and saved as a resumable note, picked up by a new chat (`tokenstretch auto`, added by `setup`).
-- Always on for Claude Code: `setup` adds the status line (wrapping an existing one) and a prompt hook, `tokenstretch nudge`, that shows the top warning in the session.
-- `/handoff` shortcut for Claude Code, added by `setup` (note, `/clear`, `/handoff resume`).
+- ~~`status --watch`~~: shipped as `tsmax watch`, with once-per-session warnings for long history, the top model on simple steps, repeated file reads, and fast growth.
+- Smart model picker: `tsmax model suggest` (heuristic) and `tsmax model default` (backed up, undoable).
+- Weekly savings report: `tsmax report --weekly`.
+- Local dashboard: `tsmax dashboard` (loopback only, read-only, live).
+- Instruction-file trimmer: `tsmax trim` (dry run by default, safe mechanical edits only, backed up, undoable).
+- Status-bar line: `tsmax statusline` (history size and the most urgent watch warning).
+- Brief writer: `tsmax brief` (prompt generator and lint, local rules), and a `/tsmax-brief` shortcut for Claude Code added by `setup`.
+- Start-up breakdown: `tsmax startup` (local parts sized, measured first step, the unsized rest).
+- Autopilot for Claude Code: automatic summaries at a set size, shaped and saved as a resumable note, picked up by a new chat (`tsmax auto`, added by `setup`).
+- Always on for Claude Code: `setup` adds the status line (wrapping an existing one) and a prompt hook, `tsmax nudge`, that shows the top warning in the session.
+- `/tsmax-handoff` shortcut for Claude Code, added by `setup` (note, `/clear`, `/tsmax-handoff resume`).
 - `watch`: cache-expiry warning for Claude Code (logged, and predicted for idle sessions).
 - Codex: session labels from the rollout's working directory, and a light/mid/top tier map for `model suggest` / `model default`.
 
@@ -24,15 +24,15 @@
 
 - `watch`: flag runs of short steps that each re-send a large history (a lead that wakes once per helper result), with the advice to wait for all helpers and act once.
 - Cache-expiry warning, `statusline` and the in-session warning for Codex, Gemini CLI, and Copilot CLI, once each tool's cache counts and status-bar input are verified.
-- `/handoff` for Codex, Gemini CLI, and Copilot CLI, once each tool's custom-command format is verified. Measure the saving with `bench` (one long session against handoff, clear, resume).
-- `tokenstretch tools`: break a session's start-up size into instruction files, connectors, skills, and the rest, with per-item approx. tokens and a backed-up way to turn off the unused ones.
+- `/tsmax-handoff` for Codex, Gemini CLI, and Copilot CLI, once each tool's custom-command format is verified. Measure the saving with `bench` (one long session against handoff, clear, resume).
+- `tsmax tools`: break a session's start-up size into instruction files, connectors, skills, and the rest, with per-item approx. tokens and a backed-up way to turn off the unused ones.
 - `setup`: offer to add the `statusLine` entry (backed up, undoable) when none is set.
 
 - A dashboard "copy command" button next to each fix (still read-only).
 
 - `trim`: offer moving blocks out of user-level files once each tool's import syntax is verified, and flag headings left empty after duplicates are removed.
 
-- Move the Claude Code specifics that live outside the adapter into `tokenstretch/adapters/claude_code.py`, behind the adapter interface in `ADAPTERS.md`. Today these core modules name Claude Code paths, file formats or flags directly: `auto.py` (the hook payloads and `.claude/handoff.md`), `connectors.py` (`~/.claude.json` and the `mcp__` tool names in the logs), `startup_plugins.py` (the plugin and skill folders), `trim_skills.py` (the skill file format), `rework.py` (the log row shapes), parts of `nudge.py` (the hook replies and the `Stop` hook check) and the worker settings in `startup.py` (`agent_settings`). They work, and nothing is moved yet: this is a note of what a second full adapter for these features would have to lift out first.
+- Move the Claude Code specifics that live outside the adapter into `tsmax/adapters/claude_code.py`, behind the adapter interface in `ADAPTERS.md`. Today these core modules name Claude Code paths, file formats or flags directly: `auto.py` (the hook payloads and `.claude/tsmax-handoff.md`), `connectors.py` (`~/.claude.json` and the `mcp__` tool names in the logs), `startup_plugins.py` (the plugin and skill folders), `trim_skills.py` (the skill file format), `rework.py` (the log row shapes), parts of `nudge.py` (the hook replies and the `Stop` hook check) and the worker settings in `startup.py` (`agent_settings`). They work, and nothing is moved yet: this is a note of what a second full adapter for these features would have to lift out first.
 
 ## Good first issues
 - **Goose adapter** (doctor-only): detect the config, check the default model and telemetry. See `ADAPTERS.md` for the interface.

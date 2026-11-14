@@ -6,9 +6,9 @@ from pathlib import Path
 import pytest
 
 from tests.conftest import copy_fixture, credential_guard, run_doctor
-from tokenstretch.adapters import REGISTRY
-from tokenstretch.adapters.base import DetectResult, HeadlessRefused, HookPlan
-from tokenstretch.context import build_context
+from tsmax.adapters import REGISTRY
+from tsmax.adapters.base import DetectResult, HeadlessRefused, HookPlan
+from tsmax.context import build_context
 
 METHODS = (
     "detect",

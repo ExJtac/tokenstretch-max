@@ -10,10 +10,10 @@ from pathlib import Path
 
 from conftest import CANARIES, credential_guard
 
-from tokenstretch.cli import main
-from tokenstretch.context import build_context
-from tokenstretch.models import suggest_tier
-from tokenstretch.watch import Watcher, WatchConfig, run_watch
+from tsmax.cli import main
+from tsmax.context import build_context
+from tsmax.models import suggest_tier
+from tsmax.watch import Watcher, WatchConfig, run_watch
 
 T0 = datetime(2026, 1, 5, 17, 0, 0, tzinfo=timezone.utc)
 
@@ -165,7 +165,7 @@ def test_model_suggest_heuristics():
 
 
 def test_model_suggest_effort_follows_the_score():
-    from tokenstretch.models import EFFORTS, suggest_effort
+    from tsmax.models import EFFORTS, suggest_effort
     assert [suggest_effort(n) for n in (-5, -2, -1, 0, 1, 2, 3, 4, 9)] == [
         "low", "low", "medium", "medium", "medium", "high", "high", "xhigh", "xhigh"]
     assert "max" not in EFFORTS                                   # a ceiling, never a suggestion
@@ -285,12 +285,12 @@ def test_model_default_dry_run_then_apply_then_undo(tmp_path):
     out = _cli(w, "model", "default", "--tier", "mid", "--tool", "claude")
     assert "Dry run" in out and "model: opus -> sonnet" in out
     assert settings.read_bytes() == original
-    assert not (w / "home" / ".tokenstretch" / "manifests").exists()
+    assert not (w / "home" / ".tsmax" / "manifests").exists()
 
     out = _cli(w, "model", "default", "--tier", "light", "--apply")
     data = json.loads(settings.read_text(encoding="utf-8"))
     assert data == {"model": "haiku", "theme": "dark"}
-    assert "backed up" in out and "tokenstretch undo" in out
+    assert "backed up" in out and "tsmax undo" in out
     assert "already on the light tier (haiku)" in _cli(w, "model", "default", "--tier", "light", "--apply")
 
     _cli(w, "undo")

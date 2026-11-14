@@ -48,7 +48,7 @@ def release(tmp_path_factory):
     subprocess.run([*git, "tag", TAG], cwd=repo, check=True)
     commit = subprocess.run(["git", "rev-parse", "HEAD"], cwd=repo, capture_output=True, text=True, check=True).stdout.strip()
     tarball = base / f"{commit}.tar.gz"
-    subprocess.run(["git", "archive", "--format=tar.gz", f"--prefix=tokenstretch-{commit}/", "-o", str(tarball), "HEAD"],
+    subprocess.run(["git", "archive", "--format=tar.gz", f"--prefix=tsmax-{commit}/", "-o", str(tarball), "HEAD"],
                    cwd=repo, check=True)
     return {"repo": repo, "commit": commit, "tarball": tarball,
             "sha": hashlib.sha256(tarball.read_bytes()).hexdigest()}
@@ -92,16 +92,16 @@ def test_install_from_pinned_tag_runs_offline(tmp_path, release):
     home = _home(tmp_path)
     r = _run(home, *_git_args(release))
     assert r.returncode == 0, r.stderr
-    assert f"verified: HEAD is {release['commit']}" in r.stdout and "Installed tokenstretch" in r.stdout
-    shim = home / ".local" / "bin" / "tokenstretch"
-    data = home / ".local" / "share" / "tokenstretch"
+    assert f"verified: HEAD is {release['commit']}" in r.stdout and "Installed tokenstretch MAX" in r.stdout
+    shim = home / ".local" / "bin" / "tsmax"
+    data = home / ".local" / "share" / "tsmax"
     assert shim.is_file() and os.access(shim, os.X_OK)
-    assert (data / "src" / "tokenstretch" / "__init__.py").is_file() and not (data / "src" / ".git").exists()
+    assert (data / "src" / "tsmax" / "__init__.py").is_file() and not (data / "src" / ".git").exists()
     assert f"commit:{release['commit']}" in (data / "install-manifest.txt").read_text()
     out = subprocess.run([str(shim), "--version"], capture_output=True, text=True, env={"HOME": str(home), "PATH": "/usr/bin:/bin"})
-    assert out.returncode == 0 and out.stdout.startswith("tokenstretch ")
-    # Run inside a project that has its own tokenstretch/ folder: the installed copy still answers.
-    other = tmp_path / "project" / "tokenstretch"
+    assert out.returncode == 0 and out.stdout.startswith("tokenstretch MAX ")
+    # Run inside a project that has its own tsmax/ folder: the installed copy still answers.
+    other = tmp_path / "project" / "tsmax"
     other.mkdir(parents=True)
     (other / "__init__.py").write_text("")
     (other / "__main__.py").write_text("print('WRONG COPY')\n")
@@ -109,7 +109,7 @@ def test_install_from_pinned_tag_runs_offline(tmp_path, release):
                            env={"HOME": str(home), "PATH": "/usr/bin:/bin"})
     assert there.returncode == 0 and there.stdout == out.stdout and "WRONG COPY" not in there.stdout
     # Nothing set up, no shell file touched, no state dir created.
-    assert not (home / ".tokenstretch").exists() and not (home / ".zshrc").exists()
+    assert not (home / ".tsmax").exists() and not (home / ".zshrc").exists()
     assert "not on your PATH" in r.stdout
     # Re-running (an upgrade to the same pin) works in place.
     assert _run(home, *_git_args(release)).returncode == 0
@@ -136,10 +136,10 @@ def test_uninstall_removes_exactly_what_it_created(tmp_path, release):
     before = _tree(home)
     r = _run(home, *_git_args(release), "--add-to-path")
     assert r.returncode == 0, r.stderr
-    assert "managed by the tokenstretch installer" in (home / ".zshrc").read_text()
-    assert list((home / ".local" / "share" / "tokenstretch" / "backups").iterdir())
+    assert "managed by the tsmax installer" in (home / ".zshrc").read_text()
+    assert list((home / ".local" / "share" / "tsmax" / "backups").iterdir())
     dry = _run(home, "--uninstall", "--dry-run")
-    assert "would remove the launcher" in dry.stdout and (home / ".local" / "bin" / "tokenstretch").exists()
+    assert "would remove the launcher" in dry.stdout and (home / ".local" / "bin" / "tsmax").exists()
     r = _run(home, "--uninstall")
     assert r.returncode == 0, r.stderr
     assert _tree(home) == before
@@ -151,7 +151,7 @@ def test_add_to_path_creates_and_uninstall_removes_a_new_rc_file(tmp_path, relea
     assert _run(home, *_git_args(release), "--add-to-path").returncode == 0
     assert (home / ".zshrc").read_text().startswith("export PATH=")
     assert _run(home, "--uninstall").returncode == 0
-    assert not (home / ".zshrc").exists() and not (home / ".local" / "bin" / "tokenstretch").exists()
+    assert not (home / ".zshrc").exists() and not (home / ".local" / "bin" / "tsmax").exists()
     assert _tree(home) == {}  # the folders it created are gone too
 
 
@@ -186,14 +186,14 @@ def test_tarball_method_checks_sha256(tmp_path, release):
     assert none.returncode != 0 and "refusing to install unverified code" in none.stderr
     ok = _run(home, "--method", "tarball", "--commit", release["commit"], "--tarball-url", url, "--sha256", release["sha"])
     assert ok.returncode == 0, ok.stderr
-    assert (home / ".local" / "share" / "tokenstretch" / "src" / "pyproject.toml").is_file()
+    assert (home / ".local" / "share" / "tsmax" / "src" / "pyproject.toml").is_file()
 
 
 def test_unpinned_script_refuses_and_foreign_launcher_is_kept(tmp_path, release):
     home = _home(tmp_path)
     r = _run(home, script=_unpinned(tmp_path))
     assert r.returncode != 0 and "No release is pinned" in r.stderr and _tree(home) == {}
-    shim = home / ".local" / "bin" / "tokenstretch"
+    shim = home / ".local" / "bin" / "tsmax"
     shim.parent.mkdir(parents=True)
     shim.write_text("#!/bin/sh\necho someone else\n")
     r = _run(home, *_git_args(release))
@@ -210,7 +210,7 @@ def test_script_has_no_telemetry_and_one_pin_block():
     assert (tag == "" and commit == "") or (re.fullmatch(r"v\d+\.\d+\.\d+", tag) and re.fullmatch(r"[0-9a-f]{40}", commit))
     assert sha == "" or re.fullmatch(r"[0-9a-f]{64}", sha)
     lowered = text.lower()
-    for bad in ("-m pip", "setup --yes", "tokenstretch install ", "analytics.", "wget "):
+    for bad in ("-m pip", "setup --yes", "tsmax install ", "analytics.", "wget "):
         assert bad not in lowered
     # The only network commands are the pinned clone and the pinned download.
     assert lowered.count("git ") and lowered.count("curl --proto") == 1
@@ -225,4 +225,26 @@ def test_shellcheck_clean():
 
 def test_pyproject_console_script():
     data = tomllib.loads((REPO / "pyproject.toml").read_text())
-    assert data["project"]["scripts"]["tokenstretch"] == "tokenstretch.cli:main"
+    assert data["project"]["scripts"]["tsmax"] == "tsmax.cli:main"
+
+
+def test_install_from_clean_local_source_without_release_pin(tmp_path, release):
+    home = _home(tmp_path)
+    r = _run(home, "--local-source", str(release["repo"]))
+    assert r.returncode == 0, r.stderr
+    assert "(no download)" in r.stdout
+    shim = home / ".local" / "bin" / "tsmax"
+    result = subprocess.run([str(shim), "--version"], capture_output=True, text=True)
+    assert result.returncode == 0 and result.stdout.startswith("tokenstretch MAX ")
+
+
+def test_local_source_refuses_uncommitted_changes(tmp_path, release):
+    home = _home(tmp_path)
+    dirty = release["repo"] / "uncommitted.txt"
+    dirty.write_text("not reviewed")
+    try:
+        r = _run(home, "--local-source", str(release["repo"]))
+        assert r.returncode != 0 and "uncommitted changes" in r.stderr
+        assert _tree(home) == {}
+    finally:
+        dirty.unlink()

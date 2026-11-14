@@ -3,9 +3,9 @@ import json
 import os
 from pathlib import Path
 
-from tokenstretch import cli
-from tokenstretch import connectors as cn
-from tokenstretch.auto import session_start
+from tsmax import cli
+from tsmax import connectors as cn
+from tsmax.auto import session_start
 
 NOW = 1_800_000_000.0
 
@@ -78,7 +78,7 @@ def test_off_is_a_dry_run_until_apply_and_on_restores_the_entry(tmp_path):
     assert list(now["mcpServers"]) == ["my tool"] and now["theme"] == "dark" and now["projects"] == before["projects"]
     assert cn.parked(home) == {k: before["mcpServers"][k] for k in ("crm", "mail")}
     assert oct((home / cn.PARK).stat().st_mode & 0o777) == "0o600" or os.name == "nt"
-    assert len(list((home / ".tokenstretch" / "backups").iterdir())) == 1
+    assert len(list((home / ".tsmax" / "backups").iterdir())) == 1
     rows = {r["name"]: r for r in cn.build(home, None, NOW)["rows"]}
     assert rows["crm"]["state"] == "off" and not rows["crm"]["unused"]
 
@@ -129,7 +129,7 @@ def test_undo_puts_a_switch_back_and_every_copy_is_owner_only(tmp_path, capsys):
     user = home / ".claude.json"
     before = user.read_bytes()
     res = cn.switch(home, ["mail"], on=False, apply=True)
-    kit = home / ".tokenstretch"
+    kit = home / ".tsmax"
     manifest = json.loads(open(res["manifest"], encoding="utf-8").read())
     assert manifest["profile"] == "connectors" and [Path(r["path"]).name for r in manifest["files"]] == [
         "connectors-off.json", ".claude.json"]                  # the off file is written first
@@ -173,7 +173,7 @@ def test_undo_reverses_a_switch_on(tmp_path):
     home, _root = _home(tmp_path)
     cn.switch(home, ["crm", "mail"], on=False, apply=True)
     cn.switch(home, ["crm"], on=True, apply=True)
-    assert len(list((home / ".tokenstretch" / "manifests").iterdir())) == 2   # same second, two records
+    assert len(list((home / ".tsmax" / "manifests").iterdir())) == 2   # same second, two records
     assert _undo(home) == 0
     assert sorted(cn.parked(home)) == ["crm", "mail"]
     assert list(json.loads((home / ".claude.json").read_text())["mcpServers"]) == ["my tool"]
@@ -184,6 +184,6 @@ def test_cli_names_undo_and_prints_no_entry(tmp_path, capsys):
     base = ["--home", str(home), "--root", str(root)]
     assert cli.main(["connectors", "off", "mail", "--apply", *base]) == 0
     out = capsys.readouterr().out
-    assert "tokenstretch undo" in out and "readable by you only" in out and "canary-value" not in out
+    assert "tsmax undo" in out and "readable by you only" in out and "canary-value" not in out
     assert cli.main(["connectors", "off", "crm", "--apply", "--json", *base]) == 0
     assert "canary-value" not in capsys.readouterr().out

@@ -9,11 +9,11 @@ from pathlib import Path
 
 from conftest import credential_guard
 
-from tokenstretch.cli import main
-from tokenstretch.context import build_context
-from tokenstretch.runner import FakeRunner
-from tokenstretch.setup import build_plan, collect_status, run_setup, write_report
-from tokenstretch.util import frontmatter
+from tsmax.cli import main
+from tsmax.context import build_context
+from tsmax.runner import FakeRunner
+from tsmax.setup import build_plan, collect_status, run_setup, write_report
+from tsmax.util import frontmatter
 
 SETTINGS = {"model": "opus", "theme": "dark"}
 
@@ -44,7 +44,7 @@ def _ctx(w: Path):
 
 def _snapshot(w: Path) -> dict:
     return {str(p): p.read_bytes() for p in (w / "home").rglob("*")
-            if p.is_file() and ".tokenstretch" not in p.parts and p.name not in {".credentials.json", "credentials"}} | \
+            if p.is_file() and ".tsmax" not in p.parts and p.name not in {".credentials.json", "credentials"}} | \
            {str(p): p.read_bytes() for p in (w / "root").rglob("*") if p.is_file()}
 
 
@@ -72,7 +72,7 @@ def test_no_tty_no_yes_is_dry_run(tmp_path):
     assert res.mode == "dry-run"
     assert "Dry run" in out and "Why:" in out and "Undo:" in out
     assert _snapshot(w) == before
-    assert not (w / "home" / ".tokenstretch" / "manifests").exists()
+    assert not (w / "home" / ".tsmax" / "manifests").exists()
 
 
 def test_explicit_dry_run_changes_nothing(tmp_path):
@@ -216,7 +216,7 @@ def test_report_is_local_html(tmp_path):
         path = write_report(_ctx(w), tmp_path / "r.html")
     text = path.read_text()
     assert text.startswith("<!doctype html>")
-    assert "tokenstretch undo" in text and "What doctor found" in text and "Newest sessions" in text
+    assert "tsmax undo" in text and "What doctor found" in text and "Newest sessions" in text
     assert not re.search(r"""(src|href)\s*=\s*["']?\s*(https?:)?//""", text, re.I)
     assert not re.search(r"url\(\s*['\"]?(https?:)?//", text, re.I)
     assert "<script" not in text.lower() and "<link" not in text.lower()
@@ -235,7 +235,7 @@ def test_cli_report_prints_path(tmp_path):
 # ---- bug fixes -------------------------------------------------------------------
 
 def test_measure_header_says_subscription():
-    from tokenstretch.bench import LiveBenchReport, format_live_bench
+    from tsmax.bench import LiveBenchReport, format_live_bench
     sub = format_live_bench(LiveBenchReport(ok=True, sandbox_root="", sandbox_home="", mode="subscription",
                                             after_model="sonnet"))
     assert "API-key" not in sub and "subscription mode" in sub and "--model sonnet" in sub
@@ -244,7 +244,7 @@ def test_measure_header_says_subscription():
 
 
 def test_w17_grouped_into_one_finding(tmp_path):
-    from tokenstretch.adapters.host import HostAdapter
+    from tsmax.adapters.host import HostAdapter
     root = tmp_path / "root"
     for i in range(4):
         d = root / f"pkg{i}"
@@ -260,21 +260,21 @@ def test_w17_grouped_into_one_finding(tmp_path):
     assert "and 3 more" in w17[0].evidence["file"]
 
 
-# ---- /handoff shortcut ------------------------------------------------------------------------
+# ---- /tsmax-handoff shortcut ------------------------------------------------------------------------
 
 def test_setup_adds_a_manual_only_handoff_skill_and_undo_removes_it(tmp_path):
-    from tokenstretch.files import frontmatter
+    from tsmax.files import frontmatter
     w = _world(tmp_path)
-    skill = w / "home" / ".claude" / "skills" / "handoff" / "SKILL.md"
+    skill = w / "home" / ".claude" / "skills" / "tsmax-handoff" / "SKILL.md"
     items, _ = build_plan(_ctx(w))
     item = next(i for i in items if i.id == "claude-handoff-skill")
     assert [c["kind"] for c in item.changes] == ["create"] and item.changes[0]["path"] == str(skill)
     _, out = _run(w, yes=True, installs=False)
-    assert "✔ added the /handoff shortcut" in out
+    assert "✔ added the /tsmax-handoff shortcut" in out
     text = skill.read_text(encoding="utf-8")
     fm = frontmatter(text)
-    assert fm.get("name") == "handoff" and fm.get("disable-model-invocation") == "true"   # nothing added per turn
-    assert "$ARGUMENTS" in text and "resume" in text and ".claude/handoff.md" in text
+    assert fm.get("name") == "tsmax-handoff" and fm.get("disable-model-invocation") == "true"   # nothing added per turn
+    assert "$ARGUMENTS" in text and "resume" in text and ".claude/tsmax-handoff.md" in text
     assert len(text) < 1600
     with credential_guard():
         main(["undo", "--home", str(w / "home"), "--root", str(w / "root"), "--sys-snapshot", str(w / "sys")])
@@ -282,7 +282,7 @@ def test_setup_adds_a_manual_only_handoff_skill_and_undo_removes_it(tmp_path):
 
 
 def test_setup_never_replaces_an_existing_handoff_shortcut(tmp_path):
-    for rel in (("home", ".claude", "commands", "handoff.md"), ("root", ".claude", "skills", "handoff", "SKILL.md")):
+    for rel in (("home", ".claude", "commands", "tsmax-handoff.md"), ("root", ".claude", "skills", "tsmax-handoff", "SKILL.md")):
         w = _world(tmp_path / rel[0])
         mine = w.joinpath(*rel)
         mine.parent.mkdir(parents=True)
@@ -294,12 +294,12 @@ def test_setup_never_replaces_an_existing_handoff_shortcut(tmp_path):
 
 
 def test_watch_and_statusline_point_to_handoff_once_it_exists(tmp_path):
-    from tokenstretch.statusline import build_line
-    from tokenstretch.watch import Watcher
+    from tsmax.statusline import build_line
+    from tsmax.watch import Watcher
     w = _world(tmp_path)                       # 200K history on opus
     with credential_guard():
         before = [x for x in Watcher(_ctx(w)).scan() if x.key[-1] == "context"][0]
-        assert "/handoff" not in before.fix and build_line(_ctx(w)).endswith("· /clear at the next task break")
+        assert "/tsmax-handoff" not in before.fix and build_line(_ctx(w)).endswith("· /clear at the next task break")
     _run(w, yes=True, installs=False)
     settings = w / "home" / ".claude" / "settings.json"
     data = json.loads(settings.read_text(encoding="utf-8"))
@@ -308,15 +308,15 @@ def test_watch_and_statusline_point_to_handoff_once_it_exists(tmp_path):
     with credential_guard():
         after = [x for x in Watcher(_ctx(w)).scan() if x.key[-1] == "context"][0]
         line = build_line(_ctx(w))
-    assert "type /handoff (writes a short note) and /clear" in after.fix and "/handoff resume" in after.fix
-    assert line.endswith("· /handoff then /clear at the next task break")
+    assert "type /tsmax-handoff (writes a short note) and /clear" in after.fix and "/tsmax-handoff resume" in after.fix
+    assert line.endswith("· /tsmax-handoff then /clear at the next task break")
 
 
 def test_no_clear_advice_while_automatic_summaries_are_on(tmp_path):
     """Setup makes the tool summarize at a set size. Below that size (plus a margin) a tip to
     clear by hand would contradict it, so watch, the status line and the prompt hook stay quiet."""
-    from tokenstretch.statusline import build_line
-    from tokenstretch.watch import Watcher
+    from tsmax.statusline import build_line
+    from tsmax.watch import Watcher
     w = _world(tmp_path)                       # 200K history on opus
     _run(w, yes=True, installs=False)
     settings = w / "home" / ".claude" / "settings.json"
@@ -325,14 +325,14 @@ def test_no_clear_advice_while_automatic_summaries_are_on(tmp_path):
     with credential_guard():
         assert not [x for x in Watcher(_ctx(w)).scan() if x.key[-1] == "context"]
         line = build_line(_ctx(w))
-    assert "/clear" not in line and "/handoff" not in line and "/compact" not in line
+    assert "/clear" not in line and "/tsmax-handoff" not in line and "/compact" not in line
 
     data["env"]["CLAUDE_CODE_AUTO_COMPACT_WINDOW"] = "120000"   # history is well past the window
     settings.write_text(json.dumps(data), encoding="utf-8")
     with credential_guard():
         late = [x for x in Watcher(_ctx(w)).scan() if x.key[-1] == "context"][0]
         line = build_line(_ctx(w))
-    assert late.fix.startswith("type /compact once") and "/clear" not in late.fix and "/handoff" not in late.fix
+    assert late.fix.startswith("type /compact once") and "/clear" not in late.fix and "/tsmax-handoff" not in late.fix
     assert line.endswith("· /compact once (automatic summary did not run)")
 
     data["env"]["DISABLE_AUTO_COMPACT"] = "1"                   # switched off by the user: manual tip again
@@ -342,7 +342,7 @@ def test_no_clear_advice_while_automatic_summaries_are_on(tmp_path):
     assert "/clear" in manual.fix
 
 
-# ---- live warnings inside the tool, and /brief ------------------------------------------------
+# ---- live warnings inside the tool, and /tsmax-brief ------------------------------------------------
 
 def test_setup_keeps_your_status_line_and_wraps_it(tmp_path):
     w = _world(tmp_path)
@@ -377,34 +377,34 @@ def test_setup_leaves_unreadable_or_unknown_settings_alone(tmp_path):
 
 
 def test_setup_adds_a_manual_only_brief_skill_and_never_replaces_yours(tmp_path):
-    from tokenstretch.files import frontmatter
+    from tsmax.files import frontmatter
     w = _world(tmp_path)
-    skill = w / "home" / ".claude" / "skills" / "brief" / "SKILL.md"
+    skill = w / "home" / ".claude" / "skills" / "tsmax-brief" / "SKILL.md"
     _, out = _run(w, yes=True, installs=False)
-    assert "✔ added the /brief shortcut" in out
+    assert "✔ added the /tsmax-brief shortcut" in out
     text = skill.read_text(encoding="utf-8")
     fm = frontmatter(text)
-    assert fm.get("name") == "brief" and fm.get("disable-model-invocation") == "true"
+    assert fm.get("name") == "tsmax-brief" and fm.get("disable-model-invocation") == "true"
     assert "$ARGUMENTS" in text and "Done when" in text and "Missing" in text and len(text) < 1800
     w2 = _world(tmp_path / "second")
-    mine = w2 / "root" / ".claude" / "commands" / "brief.md"
+    mine = w2 / "root" / ".claude" / "commands" / "tsmax-brief.md"
     mine.parent.mkdir(parents=True)
     mine.write_text("my own brief\n", encoding="utf-8")
     assert "claude-brief-skill" not in {i.id for i in build_plan(_ctx(w2))[0]}
 
 
 def test_setup_adds_a_manual_only_credits_skill_and_never_replaces_yours(tmp_path):
-    from tokenstretch.files import frontmatter
+    from tsmax.files import frontmatter
     w = _world(tmp_path)
-    skill = w / "home" / ".claude" / "skills" / "credits" / "SKILL.md"
+    skill = w / "home" / ".claude" / "skills" / "tsmax-credits" / "SKILL.md"
     _, out = _run(w, yes=True, installs=False)
-    assert "✔ added the /credits shortcut" in out
+    assert "✔ added the /tsmax-credits shortcut" in out
     text = skill.read_text(encoding="utf-8")
     fm = frontmatter(text)
-    assert fm.get("name") == "credits" and fm.get("disable-model-invocation") == "true"
-    assert "`tokenstretch startup`" in text and "`tokenstretch watch --once`" in text
+    assert fm.get("name") == "tsmax-credits" and fm.get("disable-model-invocation") == "true"
+    assert "`tsmax startup`" in text and "`tsmax watch --once`" in text
     assert len(text) < 1900 + len(str(tmp_path))
-    assert "`tokenstretch setup --list`" in text and "setup --only <id> --yes" in text
+    assert "`tsmax setup --list`" in text and "setup --only <id> --yes" in text
     assert "wait for a yes" in text and "Never pass `--with-installs`" in text
     assert "Do not change any file or setting yet." in text and "Do not tell the user to open a terminal." in text
     assert "claude-credits-skill" not in {i.id for i in build_plan(_ctx(w))[0]}      # a second run plans nothing
@@ -412,7 +412,7 @@ def test_setup_adds_a_manual_only_credits_skill_and_never_replaces_yours(tmp_pat
         main(["undo", "--home", str(w / "home"), "--root", str(w / "root"), "--sys-snapshot", str(w / "sys")])
     assert not skill.exists()
     w2 = _world(tmp_path / "second")
-    mine = w2 / "root" / ".claude" / "commands" / "credits.md"
+    mine = w2 / "root" / ".claude" / "commands" / "tsmax-credits.md"
     mine.parent.mkdir(parents=True)
     mine.write_text("my own credits\n", encoding="utf-8")
     assert "claude-credits-skill" not in {i.id for i in build_plan(_ctx(w2))[0]}
@@ -420,14 +420,14 @@ def test_setup_adds_a_manual_only_credits_skill_and_never_replaces_yours(tmp_pat
 
 def test_setup_updates_its_own_older_credits_skill_but_not_yours(tmp_path):
     w = _world(tmp_path)
-    skill = w / "home" / ".claude" / "skills" / "credits" / "SKILL.md"
+    skill = w / "home" / ".claude" / "skills" / "tsmax-credits" / "SKILL.md"
     skill.parent.mkdir(parents=True)
-    skill.write_text("---\nname: credits\n---\n<!-- added by tokenstretch; `tokenstretch undo` removes it -->\nold text\n",
+    skill.write_text("---\nname: tsmax-credits\n---\n<!-- added by tokenstretch MAX; `tsmax undo` removes it -->\nold text\n",
                      encoding="utf-8")
     item = next(i for i in build_plan(_ctx(w))[0] if i.id == "claude-credits-skill")
     assert item.title.startswith("Update") and item.changes[0]["kind"] == "modify"
     _, out = _run(w, yes=True, only=["claude-credits-skill"])
-    assert "✔ updated the /credits shortcut, backed up" in out
+    assert "✔ updated the /tsmax-credits shortcut, backed up" in out
     assert "setup --only <id> --yes" in skill.read_text(encoding="utf-8")
     assert "claude-credits-skill" not in {i.id for i in build_plan(_ctx(w))[0]}
     with credential_guard(), redirect_stdout(io.StringIO()):
@@ -442,24 +442,24 @@ def test_credits_skill_names_a_full_command_for_apps_without_the_path(tmp_path):
     import dataclasses
     import shlex
     import sys
-    from tokenstretch.adapters.claude_code import ClaudeCodeAdapter
+    from tsmax.adapters.claude_code import ClaudeCodeAdapter
     w = _world(tmp_path)
     ad, ctx = ClaudeCodeAdapter(), _ctx(w)
     bare = dataclasses.replace(ctx, path_dirs=[])                      # not installed as a command
     text = ad.credits_skill(bare)
-    assert f"{shlex.quote(sys.executable)} -m tokenstretch`" in text and "PYTHONPATH=" in text
-    assert "python3 -m tokenstretch" not in text.replace(sys.executable, "")
+    assert f"{shlex.quote(sys.executable)} -m tsmax`" in text and "PYTHONPATH=" in text
+    assert "python3 -m tsmax" not in text.replace(sys.executable, "")
     assert "do not search for it and do not install anything" in text
     bindir = tmp_path / "bin dir"
     bindir.mkdir()
-    shim = bindir / "tokenstretch"
+    shim = bindir / "tsmax"
     shim.write_text("#!/bin/sh\n", encoding="utf-8")
     shim.chmod(0o755)
     found = dataclasses.replace(ctx, path_dirs=[bindir])
     text = ad.credits_skill(found)
     assert f"`{shlex.quote(str(shim))}`" in text and "PYTHONPATH=" not in text
     # the path moved (a reinstall): setup offers to refresh the copy it wrote
-    skill = w / "home" / ".claude" / "skills" / "credits" / "SKILL.md"
+    skill = w / "home" / ".claude" / "skills" / "tsmax-credits" / "SKILL.md"
     skill.parent.mkdir(parents=True)
     skill.write_text(ad.credits_skill(bare), encoding="utf-8")
     assert ad._setup_credits(bare) is None
@@ -497,12 +497,12 @@ def test_setup_only_applies_one_step_and_skip_leaves_one_out(tmp_path):
     assert json.loads((w / "home" / ".caveman" / "cloud.json").read_text())["telemetry"]["enabled"] is False
     assert (w / "home" / ".claude" / "settings.json").read_text(encoding="utf-8") == settings
     assert (w / "root" / "CLAUDE.md").read_text(encoding="utf-8") == "# Project\n"
-    assert not (w / "home" / ".claude" / "skills" / "credits").exists()
+    assert not (w / "home" / ".claude" / "skills" / "tsmax-credits").exists()
     w2 = _world(tmp_path / "second")
     code, out, _ = _cli(w2, "--skip", "claude-rules-block,claude-credits-skill", "--yes", "--no-installs")
     assert code == 0 and "[caveman-telemetry-off]" in out
     assert (w2 / "root" / "CLAUDE.md").read_text(encoding="utf-8") == "# Project\n"
-    assert not (w2 / "home" / ".claude" / "skills" / "credits").exists()
+    assert not (w2 / "home" / ".claude" / "skills" / "tsmax-credits").exists()
     assert json.loads((w2 / "home" / ".caveman" / "cloud.json").read_text())["telemetry"]["enabled"] is False
 
 
@@ -539,7 +539,7 @@ def test_setup_never_overrides_your_own_compaction_choices(tmp_path):
 
 def test_auto_hook_shapes_the_summary_saves_it_and_points_a_new_chat_at_it(tmp_path):
     import io as _io
-    from tokenstretch.auto import run_auto
+    from tsmax.auto import run_auto
     proj = tmp_path / "proj"
     proj.mkdir()
     def call(payload, now=1_000_000.0):
@@ -550,13 +550,13 @@ def test_auto_hook_shapes_the_summary_saves_it_and_points_a_new_chat_at_it(tmp_p
     assert "Next step" in pre[0] and "Leave out file contents" in pre[0]
     assert call({"hook_event_name": "SessionStart", "source": "startup", "cwd": str(proj)}) == []   # no note yet
     assert call({"hook_event_name": "PostCompact", "cwd": str(proj), "compact_summary": "Goal: ship it."}) == []
-    note = proj / ".claude" / "handoff-auto.md"
+    note = proj / ".claude" / "tsmax-handoff-auto.md"
     assert note.read_text().endswith("Goal: ship it.\n") and "safe to delete" in note.read_text()
     import os
     os.utime(note, (1_000_000.0, 1_000_000.0))
     start = json.loads(call({"hook_event_name": "SessionStart", "source": "startup", "cwd": str(proj)}, now=1_000_600.0)[0])
     text = start["hookSpecificOutput"]["additionalContext"]
-    assert ".claude/handoff-auto.md" in text and "10 min ago" in text and "ignore the note" in text
+    assert ".claude/tsmax-handoff-auto.md" in text and "10 min ago" in text and "ignore the note" in text
     # A restart needs no "go": any opener resumes, but what waits on the user still waits.
     assert "what's happening?" in text and "in the same turn" in text and "Do not ask the user to confirm" in text
     assert "waiting on the user still waits" in text and len(text) < 900
@@ -573,7 +573,7 @@ def test_auto_hook_shapes_the_summary_saves_it_and_points_a_new_chat_at_it(tmp_p
 
 def test_auto_hook_never_fails_or_writes_where_it_should_not(tmp_path):
     import io as _io
-    from tokenstretch.auto import run_auto
+    from tsmax.auto import run_auto
     printed = []
     for raw in ("", "not json", "[1]", json.dumps({"hook_event_name": "PostCompact", "cwd": "relative", "compact_summary": "x"}),
                 json.dumps({"hook_event_name": "PostCompact", "cwd": str(tmp_path / "missing"), "compact_summary": "x"}),
@@ -584,21 +584,21 @@ def test_auto_hook_never_fails_or_writes_where_it_should_not(tmp_path):
     target = tmp_path / "secret.txt"
     target.write_text("keep", encoding="utf-8")
     (tmp_path / ".claude").mkdir()
-    (tmp_path / ".claude" / "handoff-auto.md").symlink_to(target)
+    (tmp_path / ".claude" / "tsmax-handoff-auto.md").symlink_to(target)
     run_auto(stdin=_io.StringIO(json.dumps({"hook_event_name": "PostCompact", "cwd": str(tmp_path), "compact_summary": "x"})))
     assert target.read_text() == "keep"
 
 
 def test_setup_adds_the_advisor_agent_and_undo_removes_it(tmp_path):
     w = _world(tmp_path)
-    agent = w / "home" / ".claude" / "agents" / "tokenstretch-advisor.md"
+    agent = w / "home" / ".claude" / "agents" / "tsmax-advisor.md"
     _, out = _run(w, yes=True, installs=False)
-    assert "✔ added the tokenstretch-advisor helper" in out
+    assert "✔ added the tsmax-advisor helper" in out
     text = agent.read_text(encoding="utf-8")
     fm = frontmatter(text)
-    assert fm.get("name") == "tokenstretch-advisor" and fm.get("model") == "haiku" and fm.get("tools") == "Bash, Read"
+    assert fm.get("name") == "tsmax-advisor" and fm.get("model") == "haiku" and fm.get("tools") == "Bash, Read"
     assert "Use only when the user asks" in fm.get("description", "") and len(fm["description"]) < 160
-    for cmd in ("`tokenstretch doctor --new`", "`tokenstretch watch --once --checkup 0`", "`tokenstretch startup`"):
+    for cmd in ("`tsmax doctor --new`", "`tsmax watch --once --checkup 0`", "`tsmax startup`"):
         assert cmd in text
     assert "Change no file and no setting." in text and "Your reader is the user" in text
     assert "do not send messages to other agents" in text
@@ -611,14 +611,14 @@ def test_setup_adds_the_advisor_agent_and_undo_removes_it(tmp_path):
 
 def test_setup_updates_its_own_older_advisor_but_not_yours(tmp_path):
     w = _world(tmp_path)
-    agent = w / "home" / ".claude" / "agents" / "tokenstretch-advisor.md"
+    agent = w / "home" / ".claude" / "agents" / "tsmax-advisor.md"
     agent.parent.mkdir(parents=True)
-    agent.write_text("---\nname: tokenstretch-advisor\n---\n<!-- added by tokenstretch; `tokenstretch undo` removes it -->\nold\n",
+    agent.write_text("---\nname: tsmax-advisor\n---\n<!-- added by tokenstretch MAX; `tsmax undo` removes it -->\nold\n",
                      encoding="utf-8")
     item = next(i for i in build_plan(_ctx(w))[0] if i.id == "claude-advisor-agent")
     assert item.title.startswith("Update") and item.changes[0]["kind"] == "modify"
     _, out = _run(w, yes=True, only=["claude-advisor-agent"])
-    assert "✔ updated the tokenstretch-advisor helper, backed up" in out
+    assert "✔ updated the tsmax-advisor helper, backed up" in out
     assert "claude-advisor-agent" not in {i.id for i in build_plan(_ctx(w))[0]}
     agent.write_text("my own advisor\n", encoding="utf-8")               # no marker: it is yours
     assert "claude-advisor-agent" not in {i.id for i in build_plan(_ctx(w))[0]}
@@ -627,7 +627,7 @@ def test_setup_updates_its_own_older_advisor_but_not_yours(tmp_path):
 
 def test_setup_leaves_a_project_agent_of_the_same_name_alone(tmp_path):
     w = _world(tmp_path)
-    mine = w / "root" / ".claude" / "agents" / "tokenstretch-advisor.md"
+    mine = w / "root" / ".claude" / "agents" / "tsmax-advisor.md"
     mine.parent.mkdir(parents=True)
     mine.write_text("project copy\n", encoding="utf-8")
     assert "claude-advisor-agent" not in {i.id for i in build_plan(_ctx(w))[0]}
@@ -637,24 +637,24 @@ def test_setup_leaves_a_project_agent_of_the_same_name_alone(tmp_path):
 
 def test_auto_note_keeps_the_previous_summary(tmp_path):
     import io as _io
-    from tokenstretch.auto import run_auto
+    from tsmax.auto import run_auto
     proj = tmp_path / "proj"
     proj.mkdir()
     for text in ("Goal: first.", "Goal: second.", "Goal: third."):
         run_auto(stdin=_io.StringIO(json.dumps(
             {"hook_event_name": "PostCompact", "cwd": str(proj), "compact_summary": text})))
-    assert (proj / ".claude" / "handoff-auto.md").read_text().endswith("Goal: third.\n")
-    assert (proj / ".claude" / "handoff-auto.prev.md").read_text().endswith("Goal: second.\n")   # one copy, the newest
-    assert sorted(p.name for p in (proj / ".claude").iterdir()) == ["handoff-auto.md", "handoff-auto.prev.md"]
+    assert (proj / ".claude" / "tsmax-handoff-auto.md").read_text().endswith("Goal: third.\n")
+    assert (proj / ".claude" / "tsmax-handoff-auto.prev.md").read_text().endswith("Goal: second.\n")   # one copy, the newest
+    assert sorted(p.name for p in (proj / ".claude").iterdir()) == ["tsmax-handoff-auto.md", "tsmax-handoff-auto.prev.md"]
     assert not (proj / ".git").exists()                       # not a git clone: nothing is created for git
 
 
 def test_keep_previous_never_follows_a_link_and_skips_an_empty_note(tmp_path):
-    from tokenstretch.auto import keep_previous, prev_path
-    note = tmp_path / "handoff.md"
-    assert prev_path(note).name == "handoff.prev.md" and keep_previous(note) is None      # no note yet
+    from tsmax.auto import keep_previous, prev_path
+    note = tmp_path / "tsmax-handoff.md"
+    assert prev_path(note).name == "tsmax-handoff.prev.md" and keep_previous(note) is None      # no note yet
     note.write_text("old note\n", encoding="utf-8")
-    assert keep_previous(note) == tmp_path / "handoff.prev.md"
+    assert keep_previous(note) == tmp_path / "tsmax-handoff.prev.md"
     note.write_text("  \n", encoding="utf-8")
     assert keep_previous(note) is None and prev_path(note).read_text() == "old note\n"    # empty never replaces a copy
     target = tmp_path / "secret.txt"
@@ -669,7 +669,7 @@ def test_handoff_notes_are_kept_out_of_commits_without_touching_gitignore(tmp_pa
     import io as _io
     import shutil
     import subprocess
-    from tokenstretch.auto import GIT_PATTERN, keep_out_of_git, run_auto
+    from tsmax.auto import GIT_PATTERN, keep_out_of_git, run_auto
     proj = tmp_path / "proj"
     (proj / ".git" / "info").mkdir(parents=True)
     (proj / ".git" / "info" / "exclude").write_text("*.log", encoding="utf-8")            # no newline at the end
@@ -679,7 +679,7 @@ def test_handoff_notes_are_kept_out_of_commits_without_touching_gitignore(tmp_pa
     run_auto(stdin=_io.StringIO(json.dumps(
         {"hook_event_name": "PostCompact", "cwd": str(sub), "compact_summary": "Goal: x."})))
     exclude = (proj / ".git" / "info" / "exclude").read_text()
-    assert exclude.startswith("*.log\n# tokenstretch:") and exclude.endswith(GIT_PATTERN + "\n")
+    assert exclude.startswith("*.log\n# tokenstretch MAX:") and exclude.endswith(GIT_PATTERN + "\n")
     assert (proj / ".gitignore").read_text() == "node_modules\n"                          # the tracked file is not edited
     assert keep_out_of_git(sub) is False and (proj / ".git" / "info" / "exclude").read_text() == exclude   # added once
     # A # in front of the line turns it off: it is not added again.
@@ -698,8 +698,8 @@ def test_handoff_notes_are_kept_out_of_commits_without_touching_gitignore(tmp_pa
         (real / ".claude").mkdir()
         subprocess.run(["git", "init", "-q", str(real)], check=True)
         assert keep_out_of_git(real / "pkg") is True
-        for rel in (".claude/handoff.md", ".claude/handoff.prev.md", ".claude/handoff-auto.md",
-                    ".claude/handoff-auto.prev.md", "pkg/.claude/handoff.md"):
+        for rel in (".claude/tsmax-handoff.md", ".claude/tsmax-handoff.prev.md", ".claude/tsmax-handoff-auto.md",
+                    ".claude/tsmax-handoff-auto.prev.md", "pkg/.claude/tsmax-handoff.md"):
             assert subprocess.run(["git", "-C", str(real), "check-ignore", "-q", rel]).returncode == 0, rel
         assert subprocess.run(["git", "-C", str(real), "check-ignore", "-q", ".claude/settings.json"]).returncode == 1
         wt = tmp_path / "wt"                                  # a worktree shares the main clone's exclude file
@@ -713,7 +713,7 @@ def test_handoff_notes_are_kept_out_of_commits_without_touching_gitignore(tmp_pa
 
 def test_new_chat_with_a_handoff_note_adds_the_exclude_line(tmp_path):
     import io as _io
-    from tokenstretch.auto import GIT_PATTERN, run_auto
+    from tsmax.auto import GIT_PATTERN, run_auto
     proj = tmp_path / "proj"
     (proj / ".git").mkdir(parents=True)
     (proj / ".claude").mkdir()
@@ -721,7 +721,7 @@ def test_new_chat_with_a_handoff_note_adds_the_exclude_line(tmp_path):
     run_auto(stdin=_io.StringIO(json.dumps({"hook_event_name": "SessionStart", "source": "startup", "cwd": str(proj)})),
              out=out.append, home=tmp_path / "home")
     assert not (proj / ".git" / "info").exists()              # no note: nothing is written
-    (proj / ".claude" / "handoff.md").write_text("Goal: x\n", encoding="utf-8")
+    (proj / ".claude" / "tsmax-handoff.md").write_text("Goal: x\n", encoding="utf-8")
     import time as _time
     later = _time.time() + 5       # a clock a little behind the file's time would make the note look like the future
     run_auto(stdin=_io.StringIO(json.dumps({"hook_event_name": "SessionStart", "source": "clear", "cwd": str(proj)})),
@@ -731,16 +731,16 @@ def test_new_chat_with_a_handoff_note_adds_the_exclude_line(tmp_path):
 
 def test_setup_updates_its_own_older_handoff_skill_and_never_yours(tmp_path):
     w = _world(tmp_path)
-    skill = w / "home" / ".claude" / "skills" / "handoff" / "SKILL.md"
+    skill = w / "home" / ".claude" / "skills" / "tsmax-handoff" / "SKILL.md"
     _run(w, yes=True, installs=False)
     current = skill.read_text(encoding="utf-8")
-    assert "first rename it to `.claude/handoff.prev.md`" in current and "replacing any old one" not in current
+    assert "first rename it to `.claude/tsmax-handoff.prev.md`" in current and "replacing any old one" not in current
     assert "Do not add either file to a commit" in current
     items = build_plan(_ctx(w))[0]
     assert "claude-handoff-skill" not in {i.id for i in items}                             # current: nothing to do
     skill.write_text(current.replace("first rename it", "OLDER TEXT"), encoding="utf-8")   # an older copy of ours
     item = next(i for i in build_plan(_ctx(w))[0] if i.id == "claude-handoff-skill")
-    assert item.changes[0]["kind"] == "modify" and item.title.startswith("Update the /handoff shortcut")
+    assert item.changes[0]["kind"] == "modify" and item.title.startswith("Update the /tsmax-handoff shortcut")
     _run(w, yes=True, installs=False)
     assert skill.read_text(encoding="utf-8") == current
     skill.write_text("my own handoff, no marker\n", encoding="utf-8")

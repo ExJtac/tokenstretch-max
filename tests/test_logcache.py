@@ -10,10 +10,10 @@ from pathlib import Path
 
 from conftest import credential_guard
 
-from tokenstretch.adapters.claude_code import ClaudeCodeAdapter
-from tokenstretch.adapters.codex import CodexAdapter
-from tokenstretch.context import build_context
-from tokenstretch.logcache import LogCache, split_complete
+from tsmax.adapters.claude_code import ClaudeCodeAdapter
+from tsmax.adapters.codex import CodexAdapter
+from tsmax.context import build_context
+from tsmax.logcache import LogCache, split_complete
 
 NOW = datetime.now(timezone.utc)
 

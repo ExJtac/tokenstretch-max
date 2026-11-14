@@ -1,0 +1,8 @@
+{
+  "name": "tsmax-ccusage-pin",
+  "private": true,
+  "description": "Pinned ccusage@20.0.48 install for the tsmax Clean profile.",
+  "dependencies": {
+    "ccusage": "20.0.48"
+  }
+}

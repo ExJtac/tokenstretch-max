@@ -8,9 +8,9 @@ from pathlib import Path
 
 from test_setup import SETTINGS, _run, _world
 
-from tokenstretch.cli import main
-from tokenstretch.installer import undo_manifest
-from tokenstretch.undo_keys import OWN_COMMAND, revert_own_entries
+from tsmax.cli import main
+from tsmax.installer import undo_manifest
+from tsmax.undo_keys import OWN_COMMAND, revert_own_entries
 
 MINE = {"type": "command", "command": "~/bin/my-hook.sh"}
 
@@ -50,7 +50,7 @@ def test_undo_of_changed_settings_removes_only_own_entries(tmp_path):
         "permissions": {"allow": ["Bash(ls:*)"]},
         "env": {"MY_FLAG": "1"},                                      # setup's own env key is gone
     }
-    assert "tokenstretch" not in path.read_text()
+    assert "tsmax" not in path.read_text()
     # A second undo finds nothing of ours and changes nothing.
     before = path.read_bytes()
     assert _undo(w)[0] == 0 and path.read_bytes() == before
@@ -99,7 +99,7 @@ def test_older_manifest_without_setups_copy_matches_by_command_string(tmp_path):
     _edit_after_setup(path)
     assert _undo(w)[0] == 0
     s = json.loads(path.read_text())
-    assert "tokenstretch" not in json.dumps(s["hooks"]) and "statusLine" not in s
+    assert "tsmax" not in json.dumps(s["hooks"]) and "statusLine" not in s
     assert s["hooks"] == {"UserPromptSubmit": [{"hooks": [MINE]}], "Stop": [{"hooks": [MINE]}]}
     assert s["permissions"] == {"allow": ["Bash(ls:*)"]} and s["env"]["MY_FLAG"] == "1"
     # Without the copy, a plain key cannot be told from the user's own, so it is left alone.
@@ -134,8 +134,8 @@ def test_changed_file_that_is_not_json_still_refuses(tmp_path):
 def test_wrapped_status_line_goes_back_to_the_users_own():
     theirs = {"type": "command", "command": "~/bin/line.sh"}
     before = {"statusLine": theirs, "hooks": {"Stop": [{"hooks": [MINE]}]}}
-    ours = {"type": "command", "command": "tokenstretch nudge 2>/dev/null || true", "timeout": 5}
-    after = {"statusLine": {"type": "command", "command": "tokenstretch statusline --wrap '~/bin/line.sh'"},
+    ours = {"type": "command", "command": "tsmax nudge 2>/dev/null || true", "timeout": 5}
+    after = {"statusLine": {"type": "command", "command": "tsmax statusline --wrap '~/bin/line.sh'"},
              "hooks": {"Stop": [{"hooks": [MINE]}, {"hooks": [ours]}]}}
     now = {**after, "extra": True}
     for known in (after, None):
@@ -143,19 +143,19 @@ def test_wrapped_status_line_goes_back_to_the_users_own():
 
 
 def test_own_entries_from_an_earlier_run_are_not_this_runs_to_remove():
-    ours = {"type": "command", "command": "/opt/bin/tokenstretch auto 2>/dev/null || true"}
+    ours = {"type": "command", "command": "/opt/bin/tsmax auto 2>/dev/null || true"}
     before = {"hooks": {"SessionStart": [{"hooks": [ours]}]}}
     now = {"hooks": {"SessionStart": [{"hooks": [ours]}]}, "x": 1}
     assert revert_own_entries(now, before, None) == now
 
 
 def test_own_command_pattern():
-    for cmd in ("tokenstretch nudge 2>/dev/null || true", "/Users/a/.local/bin/tokenstretch auto",
-                "PYTHONPATH=/x /usr/bin/python3 -m tokenstretch statusline --wrap 'a'",
-                "'/a b/tokenstretch' nudge"):
+    for cmd in ("tsmax nudge 2>/dev/null || true", "/Users/a/.local/bin/tsmax auto",
+                "PYTHONPATH=/x /usr/bin/python3 -m tsmax statusline --wrap 'a'",
+                "'/a b/tsmax' nudge"):
         assert OWN_COMMAND.search(cmd), cmd
-    for cmd in ("~/bin/my-hook.sh", "echo tokenstretch", "cat ~/.tokenstretch/x.json", "mytokenstretch run",
-                "tokenstretch-advisor go"):
+    for cmd in ("~/bin/my-hook.sh", "echo tsmax", "cat ~/.tsmax/x.json", "mytsmax run",
+                "tsmax-advisor go"):
         assert not OWN_COMMAND.search(cmd), cmd
 
 

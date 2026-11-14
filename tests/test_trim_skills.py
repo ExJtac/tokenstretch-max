@@ -8,8 +8,8 @@ from pathlib import Path
 
 from conftest import CANARIES, credential_guard
 
-from tokenstretch.adapters.base import rules_block
-from tokenstretch.cli import main
+from tsmax.adapters.base import rules_block
+from tsmax.cli import main
 
 STEPS = "\n".join(f"{i}. Step {i}: run the {w} stage and wait for it to finish cleanly." for i, w in
                   enumerate(["lint", "unit", "build", "package", "upload", "verify", "tag", "announce"], 1))
@@ -76,7 +76,7 @@ def test_dry_run_plans_move_and_writes_nothing(tmp_path):
     assert "approx." in out and "net ~" in out and "no longer guaranteed to be read" in out
     assert "--- a/CLAUDE.md" in out and "+- Release process: use the `release-process` skill." in out
     assert "Dry run: nothing was changed" in out
-    assert _tree(w) == before and not (w / "home" / ".tokenstretch").exists()
+    assert _tree(w) == before and not (w / "home" / ".tsmax").exists()
 
 
 def test_apply_writes_skill_pointer_and_undo_restores(tmp_path):
@@ -89,13 +89,13 @@ def test_apply_writes_skill_pointer_and_undo_restores(tmp_path):
     text = skill.read_text(encoding="utf-8")
     assert text.startswith("---\nname: release-process\ndescription: \"")
     desc = text.split("\n")[2]
-    assert len(desc) < 220 and "Release process." in desc and "Moved from CLAUDE.md by tokenstretch" in desc
+    assert len(desc) < 220 and "Release process." in desc and "Moved from CLAUDE.md by tokenstretch MAX" in desc
     assert RELEASE.rstrip("\n") in text
     new = (w / "root" / "CLAUDE.md").read_text(encoding="utf-8")
     assert "- Release process: use the `release-process` skill." in new and "Step 1" not in new
     # every other section is byte-identical
     assert new == src.replace(RELEASE, "- Release process: use the `release-process` skill.\n")
-    manifest = json.loads(next((w / "home" / ".tokenstretch" / "manifests").glob("*.json")).read_text())
+    manifest = json.loads(next((w / "home" / ".tsmax" / "manifests").glob("*.json")).read_text())
     assert manifest["profile"] == "trim"
     _undo(w)
     assert (w / "root" / "CLAUDE.md").read_bytes() == original
@@ -166,7 +166,7 @@ def test_rules_block_and_whole_file_and_level1_stay(tmp_path):
     block = f"## Release process\n\n{STEPS}\n\n{rules_block('sonnet', '/clear')}\n"
     w = _world(tmp_path, _doc(block))
     out = _run(w)
-    assert "contains the tokenstretch rules block" in out and "Planned moves: none" in out
+    assert "contains the tokenstretch MAX rules block" in out and "Planned moves: none" in out
     w2 = _world(tmp_path / "b", RELEASE)  # the section is the whole file
     assert "it is the whole file" in _run(w2)
     w3 = _world(tmp_path / "c", "# Release process\n\n" + STEPS + "\n")  # level 1 never moves
@@ -209,8 +209,8 @@ def test_file_shared_with_another_tool_is_planned_with_a_note(tmp_path):
 
 def test_project_root_memory_file_is_not_counted_but_auto_memory_is(tmp_path):
     import re
-    from tokenstretch.adapters.claude_code import ClaudeCodeAdapter
-    from tokenstretch.context import build_context
+    from tsmax.adapters.claude_code import ClaudeCodeAdapter
+    from tsmax.context import build_context
     w = _world(tmp_path, "# Project\n")
     root = w / "root"
     (root / "MEMORY.md").write_text("- a note\n" * 50, encoding="utf-8")

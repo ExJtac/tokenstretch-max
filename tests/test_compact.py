@@ -11,9 +11,9 @@ from conftest import credential_guard
 from test_gemini_copilot import _copilot_home, _gemini_home
 from test_setup import _ctx, _snapshot, _world
 
-from tokenstretch import compact as cm
-from tokenstretch.adapters import REGISTRY
-from tokenstretch.adapters.base import (
+from tsmax import compact as cm
+from tsmax.adapters import REGISTRY
+from tsmax.adapters.base import (
     COMPACT_END,
     COMPACT_START,
     RULES_END,
@@ -24,9 +24,9 @@ from tokenstretch.adapters.base import (
     remove_compact_block,
     rules_block,
 )
-from tokenstretch.cli import main
-from tokenstretch.installer import apply_changes
-from tokenstretch.trim import approx_tokens
+from tsmax.cli import main
+from tsmax.installer import apply_changes
+from tsmax.trim import approx_tokens
 
 BY_ID = {a.id: a for a in REGISTRY}
 RULES = rules_block("Sonnet", "/clear")
@@ -143,7 +143,7 @@ def test_files_that_are_never_created_and_the_home_folder(tmp_path):
     (w / "root" / "CLAUDE.md").unlink()
     assert BY_ID["claude-code"].compact_item(ctx, True).changes[0]["kind"] == "create"
     assert BY_ID["codex"].compact_item(ctx, True).changes[0]["kind"] == "create"
-    from tokenstretch.context import build_context
+    from tsmax.context import build_context
     home_ctx = build_context(w / "home", w / "home", w / "sys")
     assert all(a.compact_item(home_ctx, True) is None for a in REGISTRY)
     for a in REGISTRY:                                               # tools with no instruction file here
@@ -179,7 +179,7 @@ def test_cli_on_off_status_dry_run_and_undo(tmp_path):
     assert code == 0 and "nothing was changed" in out and _snapshot(w) == before
     code, out, _ = _cli(w, "compact", "on")
     assert code == 0 and "backed up" in out and md.read_text().count(COMPACT_START) == 1
-    backups = list((w / "home" / ".tokenstretch" / "backups").rglob("CLAUDE.md"))
+    backups = list((w / "home" / ".tsmax" / "backups").rglob("CLAUDE.md"))
     assert backups and backups[0].read_text() == "# Project\n"
     code, out, _ = _cli(w, "compact", "on")                          # twice: no second block
     assert code == 0 and "already on" in out and md.read_text().count(COMPACT_START) == 1

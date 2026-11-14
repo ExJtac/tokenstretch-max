@@ -8,11 +8,11 @@ from contextlib import redirect_stdout
 from conftest import credential_guard
 from test_watch_model import _ctx, _effort_world, _row, _watch_once, _world
 
-from tokenstretch.brief import build, from_preset, lint, render
-from tokenstretch.cli import main
-from tokenstretch.cost import cost_view, format_cost_view, grid, rate, reread_weight, resaved, startup_price, units
-from tokenstretch.statusline import build_line
-from tokenstretch.watch import WatchConfig, price_scaled
+from tsmax.brief import build, from_preset, lint, render
+from tsmax.cli import main
+from tsmax.cost import cost_view, format_cost_view, grid, rate, reread_weight, resaved, startup_price, units
+from tsmax.statusline import build_line
+from tsmax.watch import WatchConfig, price_scaled
 
 TOP, MID = "claude-fable-5-2", "claude-sonnet-5-5"
 

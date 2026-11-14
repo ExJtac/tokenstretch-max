@@ -10,10 +10,10 @@ labels: bug
 
 **Steps to reproduce**
 
-**Output** (paste `tokenstretch doctor` or `setup` output; **redact any keys, tokens, or private paths**)
+**Output** (paste `tsmax doctor` or `setup` output; **redact any keys, tokens, or private paths**)
 
 **Environment**
-- `tokenstretch --version`:
+- `tsmax --version`:
 - OS and Python version:
 - Agent(s) and version (Claude Code, Codex, ...):
 

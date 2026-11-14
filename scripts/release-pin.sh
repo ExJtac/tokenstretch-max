@@ -29,19 +29,19 @@ done
 printf '%s' "$TAG" | grep -Eq '^v[0-9]+\.[0-9]+\.[0-9]+$' || die "tag must look like v1.2.3: $TAG"
 [ -z "$SHA" ] || printf '%s' "$SHA" | grep -Eq '^[0-9a-f]{64}$' || die "--sha256 must be 64 lowercase hex characters"
 
-ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || die "run this inside the tokenstretch git repo"
+ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || die "run this inside the tsmax git repo"
 cd "$ROOT"
 SCRIPT=scripts/install.sh
 [ -f "$SCRIPT" ] || die "$SCRIPT not found"
 [ -z "$(git status --porcelain)" ] || die "the worktree has uncommitted changes; commit or stash them first"
 
-COMMIT=$(git rev-parse -q --verify "refs/tags/$TAG^{commit}") || die "no local tag $TAG (create it first: git tag -a $TAG -m \"tokenstretch ${TAG#v}\" <commit>)"
+COMMIT=$(git rev-parse -q --verify "refs/tags/$TAG^{commit}") || die "no local tag $TAG (create it first: git tag -a $TAG -m \"tsmax ${TAG#v}\" <commit>)"
 git merge-base --is-ancestor "$COMMIT" HEAD || die "$TAG ($COMMIT) is not HEAD or an ancestor of HEAD"
 
 # The tagged commit must carry the same version everywhere.
 VER=${TAG#v}
 git show "$COMMIT:pyproject.toml" | grep -qx "version = \"$VER\"" || die "pyproject.toml at $TAG is not version $VER"
-git show "$COMMIT:tokenstretch/identity.py" | grep -qx "VERSION = \"$VER\"" || die "tokenstretch/identity.py at $TAG is not VERSION $VER"
+git show "$COMMIT:tsmax/identity.py" | grep -qx "VERSION = \"$VER\"" || die "tsmax/identity.py at $TAG is not VERSION $VER"
 git show "$COMMIT:CHANGELOG.md" | grep -q "^## \[$VER\]" || die "CHANGELOG.md at $TAG has no [$VER] section"
 
 cur_tag=$(sed -n 's/^TS_PIN_TAG="\([^"]*\)".*/\1/p' "$SCRIPT")
@@ -90,5 +90,5 @@ fi
 git commit -q -m "$msg" -m "scripts/install.sh now installs $TAG at $COMMIT.${SHA:+ Tarball SHA-256: $SHA.}"
 PIN=$(git rev-parse HEAD)
 echo "Committed $PIN: $msg"
-echo "Immutable install link (after you push): https://raw.githubusercontent.com/ExJtac/tokenstretch/$PIN/scripts/install.sh"
+echo "Immutable install link (after you push): https://raw.githubusercontent.com/ExJtac/tokenstretch-max/$PIN/scripts/install.sh"
 echo "Nothing was pushed. Check it: sh scripts/install.sh --dry-run"

@@ -11,14 +11,14 @@ import shutil
 from argparse import Namespace
 from contextlib import redirect_stderr, redirect_stdout
 
-from tokenstretch.adapters import implemented_check_ids
+from tsmax.adapters import implemented_check_ids
 from tests.conftest import FIXTURES, credential_guard, finding_ids, findings_with, run_doctor
 
 NEW = ("W19", "W20", "W21", "W22", "W23", "W24", "W25", "W26", "W27")
 
 
 def _doctor_tree(dest):
-    from tokenstretch.cli import doctor
+    from tsmax.cli import doctor
 
     args = Namespace(home=dest / "home", root=dest / "root", sys_snapshot=dest / "sys",
                      plan=None, privacy=False, json=True)

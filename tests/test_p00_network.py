@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 REPO = Path(__file__).resolve().parents[1]
-SRC = REPO / "tokenstretch"
+SRC = REPO / "tsmax"
 
 # Imports that would let doctor/bench (or a future module outside install-apply) hit the network.
 IMPORT_RE = re.compile(
@@ -31,7 +31,7 @@ def test_p00_source_has_no_network_imports():
 
 @pytest.mark.p00_outer
 def test_p00_suite_under_unshare_rn():
-    if os.environ.get("TOKENSTRETCH_P00_INNER") == "1":
+    if os.environ.get("TSMAX_P00_INNER") == "1":
         pytest.skip("already inside the network-blocked inner run")
     if not sys.platform.startswith("linux") or shutil_which("unshare") is None:
         pytest.skip(f"unshare -rn needs Linux with util-linux unshare (platform: {sys.platform})")
@@ -39,7 +39,7 @@ def test_p00_suite_under_unshare_rn():
     if probe.returncode != 0:
         pytest.skip(f"unshare -rn unavailable: {probe.stderr.strip() or probe.stdout.strip() or probe.returncode}")
     env = os.environ.copy()
-    env["TOKENSTRETCH_P00_INNER"] = "1"
+    env["TSMAX_P00_INNER"] = "1"
     proc = subprocess.run(
         [
             # No route off the machine; loopback is brought up (when `ip` exists) so the

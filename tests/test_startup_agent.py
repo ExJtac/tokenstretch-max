@@ -1,9 +1,9 @@
 """`startup --agent`: lean worker profile, from parts already sized."""
 import json
 
-from tokenstretch import cli
-from tokenstretch.cost import startup_price
-from tokenstretch.startup import agent_profile, format_agent
+from tsmax import cli
+from tsmax.cost import startup_price
+from tsmax.startup import agent_profile, format_agent
 
 MODEL = "claude-fable-5-2"
 

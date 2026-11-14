@@ -1,7 +1,7 @@
 """Rework meter: signals from raw Claude Code log lines, pure and offline."""
 import json
 
-from tokenstretch import rework
+from tsmax import rework
 
 
 def _asst(mid, blocks, model="claude-fable-5-2"):

@@ -3,8 +3,8 @@ import json
 import os
 import time
 
-from tokenstretch import cli
-from tokenstretch import outputs as op
+from tsmax import cli
+from tsmax import outputs as op
 
 NOW = 1_800_000_000.0
 DAY = time.strftime("%Y-%m-%d", time.gmtime(NOW - 86400))

@@ -2,10 +2,10 @@
 import io
 import json
 
-from tokenstretch import pace as pc
-from tokenstretch import paceauto
-from tokenstretch.cli import main
-from tokenstretch.statusline import run_statusline
+from tsmax import pace as pc
+from tsmax import paceauto
+from tsmax.cli import main
+from tsmax.statusline import run_statusline
 
 NOW = 1_800_000_000.0
 PAYLOAD = {"rate_limits": {"five_hour": {"used_percentage": 23.5, "resets_at": NOW + 3600},

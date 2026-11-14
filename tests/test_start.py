@@ -12,10 +12,10 @@ from conftest import credential_guard
 from test_pace import DAY, RESETS, T0, _sess, _turn
 from test_setup import _ctx, _snapshot, _world
 
-from tokenstretch import pace as pc
-from tokenstretch import paceauto
-from tokenstretch import start as st
-from tokenstretch.cli import main
+from tsmax import pace as pc
+from tsmax import paceauto
+from tsmax import start as st
+from tsmax.cli import main
 
 BANNED = re.compile(r"units|pace ratio|re-read|reread", re.I)
 
@@ -39,7 +39,7 @@ def _run(w, **kw):
 
 
 def _everything(w) -> dict:
-    """Every file under home and root, the tokenstretch folder included."""
+    """Every file under home and root, the tsmax folder included."""
     return {str(p): p.read_bytes() for base in (w / "home", w / "root") for p in base.rglob("*")
             if p.is_file() and p.name not in {".credentials.json", "credentials"}}
 
@@ -50,8 +50,8 @@ def test_no_flag_changes_nothing_and_prints_the_apply_command(tmp_path):
     code, out, err = _main(w)            # pytest's stdin is not a terminal
     assert code == 0 and err == ""
     assert _everything(w) == before
-    assert not (w / "home" / ".tokenstretch").exists()
-    assert "Nothing was changed" in out and "tokenstretch start --yes" in out
+    assert not (w / "home" / ".tsmax").exists()
+    assert "Nothing was changed" in out and "tsmax start --yes" in out
     assert "Switch on automatic plan readings" in out and "Apply these changes?" not in out
     assert "Python" in out and "Claude Code" in out
 
@@ -64,7 +64,7 @@ def test_yes_applies_and_the_undo_path_restores(tmp_path):
     s = json.loads((w / "home" / ".claude" / "settings.json").read_text())
     assert s["model"] == "sonnet" and "statusLine" in s and "hooks" in s
     assert paceauto.is_on(pc.load_state(w / "home"))
-    assert "tokenstretch undo" in out and "pace auto --off" in out
+    assert "tsmax undo" in out and "pace auto --off" in out
     undo = io.StringIO()
     with credential_guard(), redirect_stdout(undo):
         assert main(["undo", "--home", str(w / "home"), "--root", str(w / "root"),
@@ -103,12 +103,12 @@ def test_json_shape_and_it_never_asks(tmp_path):
     assert "claude-default-model" in ids and ids[-1] == "pace-auto"
     assert all(set(c) == {"id", "title", "files"} for c in data["planned_changes"])
     assert data["applied"] is False and data["mode"] == "dry-run" and data["pace"] is None
-    assert data["apply_command"].startswith("tokenstretch start --yes")
+    assert data["apply_command"].startswith("tsmax start --yes")
     code, out, _ = _main(w, "--json", "--yes")
     data = json.loads(out)
     assert code == 0 and data["applied"] is True and data["mode"] == "applied"
     assert set(data["pace"]) >= {"has_reading", "window", "used_percent", "week_passed_percent", "status", "lines"}
-    assert data["pace"]["status"] == "no-reading" and data["undo"][0].startswith("tokenstretch undo")
+    assert data["pace"]["status"] == "no-reading" and data["undo"][0].startswith("tsmax undo")
     code, out, _ = _main(w, "--json")
     assert json.loads(out)["mode"] == "already-set-up" and json.loads(out)["planned_changes"] == []
 
@@ -168,7 +168,7 @@ def test_no_supported_tool_changes_nothing(tmp_path):
     (w / "sys").mkdir()
     code, out, _ = _main(w, "--yes")
     assert code == 0 and "No supported coding tool" in out
-    assert not (w / "home" / ".tokenstretch").exists()
+    assert not (w / "home" / ".tsmax").exists()
 
 
 # ---- how the week is going ---------------------------------------------------------------------------
@@ -224,15 +224,15 @@ def test_five_hour_window_alone_is_not_the_week(tmp_path, monkeypatch):
 
 def test_summary_reports_the_tightest_weekly_limit(tmp_path):
     """Two weekly limits stored: the plain lines speak about the one furthest over its even share."""
-    from tokenstretch import pace as pc
-    from tokenstretch import start as st
-    from tokenstretch.context import Context
+    from tsmax import pace as pc
+    from tsmax import start as st
+    from tsmax.context import Context
     home = tmp_path / "home"
-    (home / ".tokenstretch").mkdir(parents=True)
+    (home / ".tsmax").mkdir(parents=True)
     now = 1_800_000_000.0
     resets = pc.iso(now + 3.5 * 86400)
     at = pc.iso(now - 60)
-    (home / ".tokenstretch" / "pace.json").write_text(json.dumps({"windows": {
+    (home / ".tsmax" / "pace.json").write_text(json.dumps({"windows": {
         "all": {"models": None, "length_s": 604800, "resets": resets, "readings": [{"used": 40.0, "at": at}]},
         "top": {"models": "fable", "length_s": 604800, "resets": resets, "readings": [{"used": 90.0, "at": at}]},
     }}), encoding="utf-8")

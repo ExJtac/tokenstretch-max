@@ -5,12 +5,12 @@ import json
 import subprocess
 from pathlib import Path
 
-from tokenstretch.adapters.claude_code import ClaudeCodeAdapter
-from tokenstretch.adapters.codex import CodexAdapter
-from tokenstretch.adapters.host import HostAdapter
-from tokenstretch.bench import _copy_repo, format_prepare, prepare_bench
-from tokenstretch.context import build_context
-from tokenstretch.files import clear_git_ls_cache
+from tsmax.adapters.claude_code import ClaudeCodeAdapter
+from tsmax.adapters.codex import CodexAdapter
+from tsmax.adapters.host import HostAdapter
+from tsmax.bench import _copy_repo, format_prepare, prepare_bench
+from tsmax.context import build_context
+from tsmax.files import clear_git_ls_cache
 
 SAME_TEXT = "shared standing rules\n"
 
@@ -142,7 +142,7 @@ def test_after_model_only_on_after_commands(tmp_path):
 
 
 def test_after_model_cli_flag(tmp_path):
-    from tokenstretch.cli import main
+    from tsmax.cli import main
 
     root, home = _make_project(tmp_path)
     dest = tmp_path / "prepared"

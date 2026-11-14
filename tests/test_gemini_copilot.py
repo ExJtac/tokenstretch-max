@@ -10,15 +10,15 @@ from pathlib import Path
 import pytest
 
 from conftest import credential_guard, finding_ids, findings_with
-from tokenstretch.adapters import REGISTRY
-from tokenstretch.adapters.base import HeadlessRefused, HookPlan
-from tokenstretch.bench import FakeHeadlessRunner, HeadlessResult, live_bench, prepare_bench
-from tokenstretch.catalog import CLEAN_HOOK_PLAN_ITEMS
-from tokenstretch.context import build_context
-from tokenstretch.installer import apply_changes, plan_file_changes
-from tokenstretch.logcache import LogCache
-from tokenstretch.models import run_default
-from tokenstretch.setup import build_plan, collect_findings
+from tsmax.adapters import REGISTRY
+from tsmax.adapters.base import HeadlessRefused, HookPlan
+from tsmax.bench import FakeHeadlessRunner, HeadlessResult, live_bench, prepare_bench
+from tsmax.catalog import CLEAN_HOOK_PLAN_ITEMS
+from tsmax.context import build_context
+from tsmax.installer import apply_changes, plan_file_changes
+from tsmax.logcache import LogCache
+from tsmax.models import run_default
+from tsmax.setup import build_plan, collect_findings
 
 GEM = next(a for a in REGISTRY if a.id == "gemini-cli")
 COP = next(a for a in REGISTRY if a.id == "copilot-cli")
@@ -43,7 +43,7 @@ def _snapshot(w: Path) -> dict:
     out = {}
     for base in (w / "home", w / "root"):
         for p in base.rglob("*"):
-            if p.is_file() and ".tokenstretch" not in p.parts:
+            if p.is_file() and ".tsmax" not in p.parts:
                 out[str(p)] = p.read_bytes()
     return out
 
@@ -228,7 +228,7 @@ def test_gemini_install_hooks_apply_and_undo(tmp_path):
                or c["path"].endswith(".gemini/settings.json")]
     assert any(c.get("mode") == 0o755 for c in changes)
     applied = apply_changes(ctx, changes, stamp="gemtest")
-    script = w / "home" / ".tokenstretch" / "hooks" / "gemini-session-start.sh"
+    script = w / "home" / ".tsmax" / "hooks" / "gemini-session-start.sh"
     assert script.is_file() and os.access(script, os.X_OK)
     assert GEM.install_hooks(ctx, HookPlan(items=list(CLEAN_HOOK_PLAN_ITEMS)))["changes"] == []  # idempotent
     with credential_guard():
@@ -478,7 +478,7 @@ def test_bench_includes_detected_gemini_and_copilot(tmp_path, monkeypatch):
 
 
 def test_dashboard_weekly_report_include_gemini_and_copilot(tmp_path):
-    from tokenstretch.weekly import read_records, sessions
+    from tsmax.weekly import read_records, sessions
     w = _world(tmp_path)
     _gemini_home(w)
     _gemini_chat(w, w / "root")

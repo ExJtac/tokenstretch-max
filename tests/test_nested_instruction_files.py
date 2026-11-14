@@ -3,9 +3,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from tokenstretch.adapters.claude_code import ClaudeCodeAdapter
-from tokenstretch.adapters.codex import CodexAdapter
-from tokenstretch.context import build_context
+from tsmax.adapters.claude_code import ClaudeCodeAdapter
+from tsmax.adapters.codex import CodexAdapter
+from tsmax.context import build_context
 
 BIG = "- a rule line that is long enough to add up quickly\n" * 900  # well over 25 KB
 

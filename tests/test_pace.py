@@ -10,9 +10,9 @@ import pytest
 from conftest import credential_guard
 from test_watch_model import _ctx, _row, _world
 
-from tokenstretch import pace as pc
-from tokenstretch.cli import main
-from tokenstretch.watch import Watcher
+from tsmax import pace as pc
+from tsmax.cli import main
+from tsmax.watch import Watcher
 
 TOP, MID = "claude-fable-5-2", "claude-sonnet-5-5"
 T0 = datetime(2026, 1, 5, 0, 0, 0, tzinfo=timezone.utc).timestamp()
@@ -98,7 +98,7 @@ def test_gate_with_no_reading_never_blocks(tmp_path):
     with redirect_stdout(buf), credential_guard():
         assert main(["pace", "--gate", *args, "--json"]) == 0
     assert json.loads(buf.getvalue()) == {"ok": True, "wait_seconds": 0, "window": None, "used": None, "line": None}
-    assert not (w / "home" / ".tokenstretch" / "pace.json").exists()
+    assert not (w / "home" / ".tsmax" / "pace.json").exists()
 
 
 def test_window_rollover_restarts_readings_and_a_finished_window_is_silent():
@@ -239,7 +239,7 @@ def test_cli_set_show_and_gate_exit_codes(tmp_path):
         return code, buf.getvalue()
 
     assert run("set", "--window", "weekly", "--used", "90", "--resets", "2026-01-12T17:00:00Z", "--length", "7d")[0] == 0
-    stored = json.loads((w / "home" / ".tokenstretch" / "pace.json").read_text())
+    stored = json.loads((w / "home" / ".tsmax" / "pace.json").read_text())
     assert stored["windows"]["weekly"]["readings"][0]["used"] == 90
     code, text = run("--gate", "--json")
     gate = json.loads(text)
@@ -252,7 +252,7 @@ def test_cli_set_show_and_gate_exit_codes(tmp_path):
     code, text = run("--what-if")
     assert code == 0 and "What if" in text
     assert run("set", "--window", "weekly", "--used", "1", "--resets", "2026-01-12T17:00:00Z")[0] == 0
-    stored = json.loads((w / "home" / ".tokenstretch" / "pace.json").read_text())
+    stored = json.loads((w / "home" / ".tsmax" / "pace.json").read_text())
     assert stored["windows"]["weekly"]["readings"][-1]["used"] == 1     # lower than before: older readings dropped
     assert run("--gate")[0] == 0
     assert run("clear", "--window", "weekly")[0] == 0 and run("--gate")[0] == 0
@@ -287,8 +287,8 @@ def _log_line(i: int, at: float, out: int = 100, mid: str | None = None) -> str:
 
 
 def test_step_cache_reads_only_what_a_log_gained_and_never_counts_a_step_twice(tmp_path):
-    from tokenstretch.adapters.claude_code import _feed_usage_steps
-    from tokenstretch.stepcache import StepCache
+    from tsmax.adapters.claude_code import _feed_usage_steps
+    from tsmax.stepcache import StepCache
     log, store = tmp_path / "s.jsonl", tmp_path / "cache" / "steps.json"
     log.write_text(_log_line(0, T0) + _log_line(1, T0 + 60))
     c = StepCache(store)
@@ -312,7 +312,7 @@ def test_step_cache_reads_only_what_a_log_gained_and_never_counts_a_step_twice(t
 
 
 def test_window_sessions_counts_steps_beyond_the_tail_of_a_long_log(tmp_path):
-    from tokenstretch.adapters.claude_code import ClaudeCodeAdapter, _session_turns
+    from tsmax.adapters.claude_code import ClaudeCodeAdapter, _session_turns
     ctx = _ctx(_world(tmp_path, [_row(0, TOP, 1000)]))
     proj = ctx.home / ".claude" / "projects" / "p"
     proj.mkdir(parents=True, exist_ok=True)
@@ -325,5 +325,5 @@ def test_window_sessions_counts_steps_beyond_the_tail_of_a_long_log(tmp_path):
     ad = ClaudeCodeAdapter()
     mine = [s for s in ad.window_sessions(ctx) if s["path"] == str(log)]
     assert len(mine) == 1 and len(mine[0]["turns"]) == 300 and len(mine[0]["helpers"][0]["turns"]) == 2
-    assert (ctx.home / ".tokenstretch" / "cache" / "window-steps.json").is_file()
+    assert (ctx.home / ".tsmax" / "cache" / "window-steps.json").is_file()
     assert len([s for s in ad.window_sessions(ctx) if s["path"] == str(log)][0]["turns"]) == 300

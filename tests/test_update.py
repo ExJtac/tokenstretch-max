@@ -1,4 +1,4 @@
-"""`tokenstretch update`: every test injects the downloader and the installer runner. No network."""
+"""`tsmax update`: every test injects the downloader and the installer runner. No network."""
 from __future__ import annotations
 
 import json
@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from tokenstretch import update as up
+from tsmax import update as up
 
 REPO = Path(__file__).resolve().parents[1]
 COMMIT = "a" * 40
@@ -72,10 +72,9 @@ def run(tmp_path, **kw):
     return code, lines, ran
 
 
-def test_parse_pins_reads_the_real_installer():
-    pins = up.parse_pins((REPO / "scripts" / "install.sh").read_text(encoding="utf-8"))
-    assert re.fullmatch(r"v\d+\.\d+\.\d+", pins["tag"])
-    assert re.fullmatch(r"[0-9a-f]{40}", pins["commit"])
+def test_unreleased_max_installer_has_no_upstream_pin():
+    with pytest.raises(up.UpdateError):
+        up.parse_pins((REPO / "scripts" / "install.sh").read_text(encoding="utf-8"))
 
 
 @pytest.mark.parametrize("text", ["", 'TS_PIN_TAG="main"\nTS_PIN_COMMIT="' + COMMIT + '"\nTS_PIN_TARBALL_SHA256=""',
@@ -138,7 +137,7 @@ def test_check_only_reports_and_changes_nothing(tmp_path):
 def test_non_interactive_never_installs_without_yes(tmp_path):
     code, lines, ran = run(tmp_path)
     assert code == up.EXIT_NEWER and ran == []
-    assert any("tokenstretch update --yes" in line for line in lines)
+    assert any("tsmax update --yes" in line for line in lines)
 
 
 @pytest.mark.parametrize("answer,installs", [("y", True), ("YES", True), ("", False), ("n", False), ("maybe", False)])
@@ -176,7 +175,7 @@ def test_installer_failure_is_reported(tmp_path):
 def test_unmanaged_copy_is_never_changed(tmp_path):
     code, lines, ran = run(tmp_path, yes=True, install=None)
     assert code == up.EXIT_NEWER and ran == []
-    assert any("not put here by the tokenstretch installer" in line for line in lines)
+    assert any("not put here by the tsmax installer" in line for line in lines)
 
 
 def test_no_posix_shell_reports_and_stops(tmp_path):
@@ -215,41 +214,41 @@ def test_json_is_one_document_and_never_asks(tmp_path):
 
 def test_find_install_needs_the_installer_marker(tmp_path):
     data = tmp_path / "data"
-    pkg = data / "src" / "tokenstretch"
+    pkg = data / "src" / "tsmax"
     pkg.mkdir(parents=True)
     assert up.find_install(pkg, which=lambda _n: None) is None           # no manifest
     (data / "install-manifest.txt").write_text("something else\n")
     assert up.find_install(pkg, which=lambda _n: None) is None           # manifest without the marker
     (data / "install-manifest.txt").write_text(up.MARKER + "\ncommit:" + COMMIT + "\n")
-    launcher = tmp_path / "bin" / "tokenstretch"
+    launcher = tmp_path / "bin" / "tsmax"
     launcher.parent.mkdir()
-    launcher.write_text(f"#!/bin/sh\n{up.MARKER}\nexec '{data.resolve()}/venv/bin/python' -m tokenstretch \"$@\"\n")
+    launcher.write_text(f"#!/bin/sh\n{up.MARKER}\nexec '{data.resolve()}/venv/bin/python' -m tsmax \"$@\"\n")
     found = up.find_install(pkg, which=lambda _n: str(launcher))
     assert found == {"data_dir": data.resolve(), "bin_dir": launcher.parent}
-    other = tmp_path / "other" / "tokenstretch"
+    other = tmp_path / "other" / "tsmax"
     other.parent.mkdir()
     other.write_text("#!/bin/sh\necho not ours\n")
     assert up.find_install(pkg, which=lambda _n: str(other))["bin_dir"] is None   # a launcher for another copy
 
 
 def test_a_source_checkout_is_not_a_managed_install():
-    assert up.find_install(REPO / "tokenstretch", which=lambda _n: None) is None
+    assert up.find_install(REPO / "tsmax", which=lambda _n: None) is None
 
 
 def test_only_the_update_command_can_reach_the_downloader():
     """Nothing but cli.cmd_update may import the update module, so no hook or check can fetch by accident."""
     users = []
-    for path in (REPO / "tokenstretch").rglob("*.py"):
+    for path in (REPO / "tsmax").rglob("*.py"):
         if path.name == "update.py":
             continue
         text = path.read_text(encoding="utf-8")
-        if re.search(r"from \.update import|from \. import .*\bupdate\b|import tokenstretch\.update", text):
+        if re.search(r"from \.update import|from \. import .*\bupdate\b|import tsmax\.update", text):
             users.append(path.name)
     assert users == ["cli.py"]
 
 
 def test_cli_wires_the_command(tmp_path, monkeypatch, capsys):
-    from tokenstretch import cli
+    from tsmax import cli
 
     seen = {}
 

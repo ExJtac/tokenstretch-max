@@ -5,7 +5,7 @@ import sys
 
 import pytest
 
-from tokenstretch.adapters import implemented_check_ids
+from tsmax.adapters import implemented_check_ids
 from tests.conftest import finding_ids, findings_with, run_doctor
 
 NEW_IDS = ("W10", "W11", "W12", "W17", "W18", "T02", "T03", "T04", "T05", "T07", "P01", "P02", "P04", "P06")
@@ -73,8 +73,8 @@ def test_w17_dup_instructions(tmp_path):
 
 def test_w17_ignores_the_same_file_in_separate_checkouts(tmp_path):
     # Two checkouts of one project hold the same AGENTS.md; a session loads only one of them.
-    from tokenstretch.adapters.host import HostAdapter
-    from tokenstretch.context import Context
+    from tsmax.adapters.host import HostAdapter
+    from tsmax.context import Context
     home = tmp_path / "home"
     for name in ("copy-a", "copy-b"):
         (home / "work" / name).mkdir(parents=True)
@@ -208,8 +208,8 @@ def test_p06_linux_world_readable(tmp_path):
 @_NO_POSIX_MODE
 def test_p06_linux_0600_is_quiet(tmp_path):
     from tests.conftest import copy_fixture
-    from tokenstretch.adapters.host import HostAdapter
-    from tokenstretch.context import build_context
+    from tsmax.adapters.host import HostAdapter
+    from tsmax.context import build_context
     dest = copy_fixture("ecosystem", tmp_path)
     for rel in (
         "home/.claude/.credentials.json",
@@ -231,8 +231,8 @@ def test_p06_linux_0600_is_quiet(tmp_path):
 
 def test_p06_windows_never_judges_mode(tmp_path):
     from tests.conftest import copy_fixture, credential_guard
-    from tokenstretch.adapters.host import HostAdapter
-    from tokenstretch.context import build_context
+    from tsmax.adapters.host import HostAdapter
+    from tsmax.context import build_context
     dest = copy_fixture("ecosystem", tmp_path)  # credential files are 0644 here
     (dest / "sys" / "platform.txt").write_text("win32\n")
     ctx = build_context(dest / "home", dest / "root", dest / "sys")
@@ -243,8 +243,8 @@ def test_p06_windows_never_judges_mode(tmp_path):
 
 def test_p06_macos_credentials_fallback(tmp_path):
     from tests.conftest import copy_fixture, credential_guard, CANARIES
-    from tokenstretch.adapters.host import HostAdapter
-    from tokenstretch.context import build_context
+    from tsmax.adapters.host import HostAdapter
+    from tsmax.context import build_context
     dest = copy_fixture("clean", tmp_path)
     cred = dest / "home" / ".claude" / ".credentials.json"
     cred.parent.mkdir(parents=True, exist_ok=True)
@@ -267,7 +267,7 @@ def test_p06_macos_credentials_fallback(tmp_path):
 
 
 def test_walk_named_skips_named_folders_and_stops_on_budget(tmp_path, monkeypatch):
-    import tokenstretch.files as files
+    import tsmax.files as files
     for d in ("proj", "Library/app"):
         (tmp_path / d).mkdir(parents=True)
         (tmp_path / d / "CLAUDE.md").write_text("x", encoding="utf-8")

@@ -3,8 +3,8 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "tokenstretch"
-version = "0.9.6"
+name = "tsmax"
+version = "0.1.0.dev0"
 description = "Free, local-only tool that finds and fixes wasted AI coding credits (Claude Code, Codex, and more), with explanations, backups, and undo."
 readme = "README.md"
 license = { text = "MIT" }
@@ -24,13 +24,13 @@ dependencies = []
 dev = ["pytest==9.2.0"]
 
 [project.scripts]
-tokenstretch = "tokenstretch.cli:main"
+tsmax = "tsmax.cli:main"
 
 [tool.setuptools.packages.find]
-include = ["tokenstretch*"]
+include = ["tsmax*"]
 
 [tool.setuptools.package-data]
-tokenstretch = ["license_snapshots/*", "pins/ccusage/*", "pins/headroom/*"]
+tsmax = ["license_snapshots/*", "pins/ccusage/*", "pins/headroom/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

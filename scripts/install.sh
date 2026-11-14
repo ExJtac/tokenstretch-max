@@ -1,15 +1,15 @@
 #!/bin/sh
-# tokenstretch installer for macOS and Linux.
+# tsmax installer for macOS and Linux.
 #
 # What it does, in order (run with --dry-run to see every step without touching anything):
 #   1. Finds Python 3.11 or newer.
 #   2. Fetches the one pinned release below (git tag checked against the pinned commit, or a
 #      tarball checked against its pinned SHA-256). That fetch is the only network use.
 #   3. Copies it into its own folder under your data dir and creates a private venv there.
-#      No pip, no PyPI: tokenstretch has no dependencies, so nothing else is downloaded.
-#   4. Puts a `tokenstretch` launcher in ~/.local/bin. Shell startup files are edited only
+#      No pip, no PyPI: tsmax has no dependencies, so nothing else is downloaded.
+#   4. Puts a `tsmax` launcher in ~/.local/bin. Shell startup files are edited only
 #      with --add-to-path (backed up first).
-# It never runs `tokenstretch setup` or `tokenstretch install`, never installs other tools,
+# It never runs `tsmax setup` or `tsmax install`, never installs other tools,
 # and sends nothing anywhere: no telemetry, no analytics, no install ping.
 # `--uninstall` removes exactly what this script created (its folder, its launcher, its PATH line).
 set -eu
@@ -17,25 +17,27 @@ set -eu
 # ==== PINNED RELEASE ==========================================================================
 # The maintainer sets these at release time, in a commit after the tag (a commit can't name its
 # own hash). Nothing else in this file changes per release. Empty means "no release pinned yet".
-TS_PIN_TAG="v0.9.6"            # release tag, e.g. v0.1.0
-TS_PIN_COMMIT="3a78aeb5338affa045c9fdd85ea5a514ad27a604"         # full 40-character commit the tag must point at
-TS_PIN_TARBALL_SHA256="42d694ce94e3edf238a03c81c9954dff517d809e8d15922b7df998a5df13e20a" # SHA-256 of $TS_REPO/archive/$TS_PIN_COMMIT.tar.gz (tarball method only)
+TS_PIN_TAG=""            # release tag, e.g. v0.1.0
+TS_PIN_COMMIT=""         # full 40-character commit the tag must point at
+TS_PIN_TARBALL_SHA256="" # SHA-256 of $TS_REPO/archive/$TS_PIN_COMMIT.tar.gz (tarball method only)
 # ==============================================================================================
 
-TS_REPO="https://github.com/ExJtac/tokenstretch"
-MARKER="# managed by the tokenstretch installer (scripts/install.sh)"
+TS_REPO="https://github.com/ExJtac/tokenstretch-max"
+MARKER="# managed by the tsmax installer (scripts/install.sh)"
 
 DRY_RUN=0
 UNINSTALL=0
 ADD_TO_PATH=0
 METHOD=""
 SOURCE=""
+LOCAL_SOURCE=""
 TARBALL_URL=""
 PYTHON=""
 TAG="$TS_PIN_TAG"
 COMMIT="$TS_PIN_COMMIT"
+COMMIT_EXPLICIT=0
 SHA256="$TS_PIN_TARBALL_SHA256"
-DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tokenstretch"
+DATA_DIR="${XDG_DATA_HOME:-$HOME/.local/share}/tsmax"
 BIN_DIR="$HOME/.local/bin"
 
 usage() {
@@ -43,13 +45,14 @@ usage() {
 Usage: sh install.sh [options]
 
   --dry-run          print every step; change nothing
-  --uninstall        remove what this script installed (keeps ~/.tokenstretch backups)
+  --uninstall        remove what this script installed (keeps ~/.tsmax backups)
   --add-to-path      also add ~/.local/bin to PATH in your shell startup file (backed up)
   --python PATH      Python 3.11+ to use (default: newest python3.x found on PATH)
-  --data-dir DIR     install folder (default: ${XDG_DATA_HOME:-~/.local/share}/tokenstretch)
+  --data-dir DIR     install folder (default: ${XDG_DATA_HOME:-~/.local/share}/tsmax)
   --bin-dir DIR      launcher folder (default: ~/.local/bin)
 
 For testing a release before it is pinned (the commit check still applies):
+  --local-source DIR copy a clean local checkout at HEAD (no download)
   --source URL       git source (default: the GitHub repo); file:// works
   --tag TAG          tag to clone          --commit SHA   commit it must equal
   --method git|tarball                     --tarball-url URL  --sha256 HEX
@@ -57,7 +60,7 @@ USAGE
 }
 
 say() { printf '%s\n' "$*"; }
-die() { printf 'tokenstretch installer: %s\n' "$*" >&2; exit 1; }
+die() { printf 'tsmax installer: %s\n' "$*" >&2; exit 1; }
 step() { if [ "$DRY_RUN" = 1 ]; then say "[dry run] would $*"; else say "-> $*"; fi; }
 
 while [ $# -gt 0 ]; do
@@ -68,9 +71,10 @@ while [ $# -gt 0 ]; do
         --python) PYTHON="${2:?--python needs a path}"; shift ;;
         --data-dir) DATA_DIR="${2:?--data-dir needs a folder}"; shift ;;
         --bin-dir) BIN_DIR="${2:?--bin-dir needs a folder}"; shift ;;
+        --local-source) LOCAL_SOURCE="${2:?--local-source needs a directory}"; shift ;;
         --source) SOURCE="${2:?--source needs a URL}"; shift ;;
         --tag) TAG="${2:?--tag needs a tag}"; shift ;;
-        --commit) COMMIT="${2:?--commit needs a commit}"; shift ;;
+        --commit) COMMIT="${2:?--commit needs a commit}"; COMMIT_EXPLICIT=1; shift ;;
         --method) METHOD="${2:?--method needs git or tarball}"; shift ;;
         --tarball-url) TARBALL_URL="${2:?--tarball-url needs a URL}"; shift ;;
         --sha256) SHA256="${2:?--sha256 needs a hash}"; shift ;;
@@ -86,7 +90,7 @@ esac
 VENV="$DATA_DIR/venv"
 SRC_DIR="$DATA_DIR/src"
 MANIFEST="$DATA_DIR/install-manifest.txt"
-SHIM="$BIN_DIR/tokenstretch"
+SHIM="$BIN_DIR/tsmax"
 PATH_LINE="export PATH=\"$BIN_DIR:\$PATH\" $MARKER"
 
 is_ours_shim() { [ -f "$SHIM" ] && grep -qF "$MARKER" "$SHIM"; }
@@ -109,7 +113,7 @@ if [ "$UNINSTALL" = 1 ]; then
                     if [ -f "$rc" ] && grep -qF "$MARKER" "$rc"; then
                         found=1; step "remove the PATH line this installer added to $rc"
                         if [ "$DRY_RUN" = 0 ]; then
-                            tmp="$rc.tokenstretch-tmp.$$"
+                            tmp="$rc.tsmax-tmp.$$"
                             grep -vF "$MARKER" "$rc" > "$tmp" || true
                             cat "$tmp" > "$rc" && rm -f "$tmp"
                             case "$created" in *"rc-created:$rc"*) [ -s "$rc" ] || rm -f "$rc" ;; esac
@@ -131,8 +135,8 @@ if [ "$UNINSTALL" = 1 ]; then
     elif [ -e "$DATA_DIR" ]; then
         say "Leaving $DATA_DIR alone: it has no installer manifest."
     fi
-    [ "$found" = 1 ] || say "Nothing to remove: tokenstretch is not installed by this script here."
-    say "Kept ~/.tokenstretch (setup backups and manifests). Run \`tokenstretch undo\` before uninstalling to revert setup changes."
+    [ "$found" = 1 ] || say "Nothing to remove: tsmax is not installed by this script here."
+    say "Kept ~/.tsmax (setup backups and manifests). Run \`tsmax undo\` before uninstalling to revert setup changes."
     [ "$DRY_RUN" = 1 ] && say "Dry run: nothing was changed."
     exit 0
 fi
@@ -162,6 +166,17 @@ fi
 say "Python: $PYTHON ($("$PYTHON" --version 2>&1))"
 
 # ---- 2. the pinned source ---------------------------------------------------------------------
+if [ -n "$LOCAL_SOURCE" ]; then
+    [ -z "$METHOD" ] || die "--local-source cannot be combined with --method"
+    has_cmd git || die "git is required for --local-source"
+    LOCAL_COMMIT=$(git -C "$LOCAL_SOURCE" rev-parse HEAD) || die "local source must be a git checkout"
+    if [ "$COMMIT_EXPLICIT" = 1 ] && [ "$COMMIT" != "$LOCAL_COMMIT" ]; then
+        die "local HEAD $LOCAL_COMMIT does not match explicit --commit $COMMIT; refusing to install"
+    fi
+    COMMIT="$LOCAL_COMMIT"
+    [ -z "$(git -C "$LOCAL_SOURCE" status --porcelain)" ] || die "local source has uncommitted changes; commit the reviewed source first"
+    METHOD=local
+fi
 [ -n "$COMMIT" ] || die "No release is pinned in this copy of install.sh yet (TS_PIN_COMMIT is empty). Use the install line from a published release, or pass --tag and --commit to test one."
 printf '%s' "$COMMIT" | grep -Eq '^[0-9a-f]{40}$' || die "the pinned commit must be a full 40-character hex hash: $COMMIT"
 if [ -z "$METHOD" ]; then
@@ -169,6 +184,7 @@ if [ -z "$METHOD" ]; then
     else METHOD=tarball; fi
 fi
 case "$METHOD" in
+    local) : ;;
     git) [ -n "$TAG" ] || die "the git method needs a tag (--tag)"; has_cmd git || die "git is not installed; use --method tarball" ;;
     tarball) [ -n "$SHA256" ] || die "the tarball method needs a pinned SHA-256 (TS_PIN_TARBALL_SHA256 or --sha256); refusing to install unverified code" ;;
     *) die "--method must be git or tarball" ;;
@@ -185,7 +201,9 @@ if [ -e "$DATA_DIR" ] && ! { [ -f "$MANIFEST" ] && grep -qF "$MARKER" "$MANIFEST
 fi
 
 if [ "$DRY_RUN" = 1 ]; then
-    if [ "$METHOD" = git ]; then
+    if [ "$METHOD" = local ]; then
+        step "copy local commit $COMMIT from $LOCAL_SOURCE (no download)"
+    elif [ "$METHOD" = git ]; then
         step "run: git clone --depth 1 --branch $TAG $SOURCE <temp dir>  (the only network use)"
         step "check that the clone's HEAD is $COMMIT, else stop"
     else
@@ -193,9 +211,14 @@ if [ "$DRY_RUN" = 1 ]; then
         step "check its SHA-256 is $SHA256, else stop"
     fi
 else
-    TMP=$(mktemp -d "${TMPDIR:-/tmp}/tokenstretch-install.XXXXXX")
+    TMP=$(mktemp -d "${TMPDIR:-/tmp}/tsmax-install.XXXXXX")
     trap 'rm -rf "$TMP"' EXIT INT TERM
-    if [ "$METHOD" = git ]; then
+    if [ "$METHOD" = local ]; then
+        step "copy local commit $COMMIT from $LOCAL_SOURCE (no download)"
+        git -C "$LOCAL_SOURCE" archive --format=tar --output="$TMP/src.tar" "$COMMIT" || die "could not archive local source"
+        mkdir "$TMP/src"
+        tar -xf "$TMP/src.tar" -C "$TMP/src" || die "could not unpack local source"
+    elif [ "$METHOD" = git ]; then
         step "clone $SOURCE at tag $TAG (the only network use)"
         GIT_TERMINAL_PROMPT=0 GIT_CONFIG_NOSYSTEM=1 git -c core.hooksPath=/dev/null -c advice.detachedHead=false \
             clone --quiet --depth 1 --branch "$TAG" --template= "$SOURCE" "$TMP/src" \
@@ -225,8 +248,8 @@ with tarfile.open(src, "r:gz") as tf:
 os.rename(os.path.join(dest + ".x", tops.pop()), dest)
 PY
     fi
-    if [ ! -f "$TMP/src/tokenstretch/__init__.py" ] || [ ! -f "$TMP/src/pyproject.toml" ]; then
-        die "the fetched source does not look like tokenstretch"
+    if [ ! -f "$TMP/src/tsmax/__init__.py" ] || [ ! -f "$TMP/src/pyproject.toml" ]; then
+        die "the fetched source does not look like tsmax"
     fi
 fi
 
@@ -249,7 +272,7 @@ dir-created:$d"
     "$PYTHON" -m venv --without-pip "$VENV" || die "could not create a venv with $PYTHON (on Debian/Ubuntu: install python3-venv)"
     purelib=$("$VENV/bin/python" -c 'import sysconfig; print(sysconfig.get_paths()["purelib"])')
     mkdir -p "$purelib"
-    printf '%s\n' "$SRC_DIR" > "$purelib/tokenstretch-src.pth"
+    printf '%s\n' "$SRC_DIR" > "$purelib/tsmax-src.pth"
 fi
 
 # ---- 4. launcher, PATH ------------------------------------------------------------------------
@@ -259,8 +282,8 @@ if [ "$DRY_RUN" = 0 ]; then
     cat > "$SHIM" <<SH
 #!/bin/sh
 $MARKER
-# -P: never import from the folder the command is run in (a project with its own tokenstretch/ folder)
-exec "$VENV/bin/python" -P -m tokenstretch "\$@"
+# -P: never import from the folder the command is run in (a project with its own tsmax/ folder)
+exec "$VENV/bin/python" -P -m tsmax "\$@"
 SH
     chmod 755 "$SHIM"
 fi
@@ -300,5 +323,5 @@ if [ "$DRY_RUN" = 1 ]; then
 fi
 "$SHIM" --version >/dev/null || die "the launcher did not run"
 say "Installed $("$SHIM" --version) at $DATA_DIR."
-say "Nothing was set up yet. Next: \`tokenstretch start\` shows what it would change and asks before changing anything."
+say "Nothing was set up yet. Next: \`tsmax start\` shows what it would change and asks before changing anything."
 say "Remove it any time: sh install.sh --uninstall"

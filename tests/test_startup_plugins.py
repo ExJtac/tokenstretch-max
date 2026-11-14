@@ -2,7 +2,7 @@
 import json
 import os
 
-from tokenstretch import startup_plugins as sp
+from tsmax import startup_plugins as sp
 
 NOW = 1_800_000_000.0
 
@@ -126,7 +126,7 @@ def test_nothing_installed_gives_no_parts(tmp_path):
 
 
 def test_startup_report_names_the_unused(tmp_path):
-    from tokenstretch.startup import format_report
+    from tsmax.startup import format_report
     d = {"adapter": "claude-code", "name": "Claude Code", "measured_start": None, "recent": [], "known": 100,
          "rest": None, "price": None, "unsized": [], "changes": [],
          "parts": [{"kind": "skill added by the desktop app", "name": "slides", "tokens": 100, "fix": "f", "unused": True}],
@@ -151,7 +151,7 @@ def test_app_skill_fix_gives_the_help_page_steps(tmp_path):
 
 
 def test_dashboard_lists_the_unused_with_their_steps(tmp_path, monkeypatch):
-    from tokenstretch import dashboard_panels as dp, startup
+    from tsmax import dashboard_panels as dp, startup
     row = {"name": "Claude Code", "measured_start": None, "known": 100, "rest": None, "since_last": None, "price": None,
            "parts": [{"kind": "plugin (app)", "name": "viewer", "tokens": 100, "fix": sp.APP_PLUGIN_STEPS}],
            "unused": {"names": ["viewer"], "tokens": 100,

@@ -5,8 +5,8 @@ import io
 import json
 from contextlib import redirect_stdout
 
-from tokenstretch.brief import Brief, build, format_report, lint, render
-from tokenstretch.cli import main
+from tsmax.brief import Brief, build, format_report, lint, render
+from tsmax.cli import main
 
 
 def _codes(b: Brief) -> list[str]:
@@ -93,7 +93,7 @@ def test_research_brief_asks_for_sources_marks_and_gaps():
 
 
 def test_brief_only_prints_just_the_brief(capsys):
-    from tokenstretch.cli import main
+    from tsmax.cli import main
     code = main(["brief", "write the page", "--files", "a.py", "--done", "tests pass", "--brief-only"])
     out = capsys.readouterr().out
     assert code == 0 and out.startswith("Task: write the page\n") and out.endswith("No recap of the task.\n")
@@ -113,7 +113,7 @@ def test_review_brief_reads_only_its_files_and_reports_lines():
 
 
 def test_wide_review_is_flagged_and_split_keeps_folders_together():
-    from tokenstretch.brief import REVIEW_GROUP, split
+    from tsmax.brief import REVIEW_GROUP, split
     files = [f"b/p{i}.html" for i in range(5)] + [f"a/p{i}.html" for i in range(5)]
     b = Brief("review the pages", files=files, review=True)
     assert len(files) > REVIEW_GROUP and _codes(b) == ["review-too-wide"]
@@ -132,7 +132,7 @@ def test_cli_split_prints_one_brief_per_group():
 
 
 def test_build_preset_names_one_example_and_keeps_the_reply_short():
-    from tokenstretch.brief import from_preset
+    from tsmax.brief import from_preset
     b = from_preset("build", task="build the pricing page", files=["pages/pricing.py"], sources=["pages/about.py"],
                     done="the check prints NO ISSUES")
     assert lint(b) == [] and b.reply_words == 60
@@ -145,7 +145,7 @@ def test_build_preset_names_one_example_and_keeps_the_reply_short():
 
 
 def test_research_preset_caps_searches_and_wants_questions():
-    from tokenstretch.brief import from_preset
+    from tsmax.brief import from_preset
     b = from_preset("research", task="Which permits apply? What do they cost?", files=["notes/permits.md"],
                     done="both questions are answered or listed as gaps")
     assert lint(b) == [] and b.helper and b.max_searches == 8 and b.max_fetches == 6
@@ -157,7 +157,7 @@ def test_research_preset_caps_searches_and_wants_questions():
 
 
 def test_design_preset_looks_first_allows_reference_pages_and_gets_a_longer_reply():
-    from tokenstretch.brief import from_preset
+    from tsmax.brief import from_preset
     b = from_preset("design", task="redesign the landing page so the form is the first thing seen",
                     files=["static/site.css"], done="the page reads well at phone and desktop width")
     assert lint(b) == []
@@ -183,7 +183,7 @@ def test_preset_defaults_lose_to_what_you_type(capsys):
 
 def test_unknown_preset_is_refused():
     import pytest
-    from tokenstretch.brief import from_preset
+    from tsmax.brief import from_preset
     with pytest.raises(ValueError):
         from_preset("nope", task="x")
     with pytest.raises(SystemExit):

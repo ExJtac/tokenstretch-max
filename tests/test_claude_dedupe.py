@@ -10,11 +10,11 @@ import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from tokenstretch.adapters.claude_code import ClaudeCodeAdapter
-from tokenstretch.adapters.host_logs import drop_legacy_json_dupes
-from tokenstretch.bench import from_logs, measure_bench
-from tokenstretch.context import build_context
-from tokenstretch.findings import UsageRecord
+from tsmax.adapters.claude_code import ClaudeCodeAdapter
+from tsmax.adapters.host_logs import drop_legacy_json_dupes
+from tsmax.bench import from_logs, measure_bench
+from tsmax.context import build_context
+from tsmax.findings import UsageRecord
 
 ROWS = json.loads((Path(__file__).parent / "fixtures" / "logs" / "claude-dedupe" / "rows.json").read_text())
 FIELDS = ("input_uncached", "cache_write", "cache_read", "output")

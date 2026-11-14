@@ -1,4 +1,4 @@
-from tokenstretch.mask import mask_finding_evidence, mask_value
+from tsmax.mask import mask_finding_evidence, mask_value
 
 
 def test_mask_secretish_keys_and_values():

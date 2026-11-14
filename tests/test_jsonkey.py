@@ -1,9 +1,9 @@
 """`jsonkey`: one key out of a settings file, and nothing else from it."""
 import json
 
-from tokenstretch import jsonkey as jk
-from tokenstretch.nudge import end_hook_on
-from tokenstretch.startup_plugins import _plugin, found
+from tsmax import jsonkey as jk
+from tsmax.nudge import end_hook_on
+from tsmax.startup_plugins import _plugin, found
 
 SECRET = "canary-value-not-a-real-key"
 
@@ -41,7 +41,7 @@ def test_plugin_connector_count_is_a_number_and_no_entry(tmp_path):
 
 def test_settings_reads_keep_nothing_from_env(tmp_path):
     _settings(tmp_path, enabledPlugins={"viewer@market": True},
-              hooks={"Stop": [{"hooks": [{"type": "command", "command": "/x/bin/tokenstretch nudge"}]}]})
+              hooks={"Stop": [{"hooks": [{"type": "command", "command": "/x/bin/tsmax nudge"}]}]})
     plug = tmp_path / "viewer"
     (plug / "skills" / "open").mkdir(parents=True)
     (plug / "skills" / "open" / "SKILL.md").write_text("---\nname: open\ndescription: Open a file.\n---\n", encoding="utf-8")

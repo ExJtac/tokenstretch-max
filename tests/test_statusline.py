@@ -10,10 +10,10 @@ from pathlib import Path
 
 from conftest import CANARIES, credential_guard
 
-from tokenstretch.cli import main
-from tokenstretch.context import build_context
-from tokenstretch.statusline import build_line, light_context, read_payload, run_statusline
-from tokenstretch.watch import Watcher, WatchConfig, cache_misses, run_watch
+from tsmax.cli import main
+from tsmax.context import build_context
+from tsmax.statusline import build_line, light_context, read_payload, run_statusline
+from tsmax.watch import Watcher, WatchConfig, cache_misses, run_watch
 
 T0 = datetime(2026, 1, 5, 17, 0, 0, tzinfo=timezone.utc)
 SONNET = "claude-sonnet-5-5"   # the mid model: limits are not price-scaled for it
@@ -192,7 +192,7 @@ def test_statusline_cli(tmp_path, monkeypatch):
 
 def test_wrap_adds_our_line_after_the_other_tools_first_line(tmp_path):
     import sys
-    from tokenstretch.statusline import join_lines, run_wrapped
+    from tsmax.statusline import join_lines, run_wrapped
     w = _world(tmp_path, [_row(0, 0, read=20_000), _row(1, 40, read=22_000)])
     payload = json.dumps({"transcript_path": str(_log(w)), "model": {"display_name": "Sonnet"}})
     # A stand-in for another tool's status line: it reads the same JSON and prints two lines.
@@ -210,7 +210,7 @@ def test_wrap_adds_our_line_after_the_other_tools_first_line(tmp_path):
 
 def test_wrap_failures_never_cost_either_line(tmp_path):
     import sys
-    from tokenstretch.statusline import run_wrapped
+    from tsmax.statusline import run_wrapped
     w = _world(tmp_path, [_row(0, 0, read=20_000), _row(1, 40, read=22_000)])
     payload = json.dumps({"transcript_path": str(_log(w))})
     ours = f"22K/150K history · {SONNET}"
@@ -249,21 +249,21 @@ def test_watch_warns_when_a_session_starts_heavy(tmp_path):
         line = build_line(_ctx(w), {"transcript_path": str(_log(w))})
     assert [x.key[-1] for x in warns] == ["startup"] and quiet == []
     assert "started at ~78K tokens before doing any work" in warns[0].what
-    assert "tokenstretch startup" in warns[0].fix and "/clear" not in warns[0].fix
-    assert "ask the agent to run `tokenstretch startup` (or run it in a terminal)" in warns[0].fix
-    assert line == "⚠ 79K/150K history · starts at 78K before any work: tokenstretch startup"
-    skill = w / "home" / ".claude" / "skills" / "credits" / "SKILL.md"       # with the shortcut: no terminal needed
+    assert "tsmax startup" in warns[0].fix and "/clear" not in warns[0].fix
+    assert "ask the agent to run `tsmax startup` (or run it in a terminal)" in warns[0].fix
+    assert line == "⚠ 79K/150K history · starts at 78K before any work: tsmax startup"
+    skill = w / "home" / ".claude" / "skills" / "tsmax-credits" / "SKILL.md"       # with the shortcut: no terminal needed
     skill.parent.mkdir(parents=True)
-    skill.write_text("---\nname: credits\n---\n", encoding="utf-8")
+    skill.write_text("---\nname: tsmax-credits\n---\n", encoding="utf-8")
     with credential_guard():
         warns = Watcher(_ctx(w)).scan()
         line = build_line(_ctx(w), {"transcript_path": str(_log(w))})
-    assert warns[0].fix.startswith("type `/credits` to see what it is made of") and "terminal" not in warns[0].fix
-    assert line == "⚠ 79K/150K history · starts at 78K before any work: /credits"
+    assert warns[0].fix.startswith("type `/tsmax-credits` to see what it is made of") and "terminal" not in warns[0].fix
+    assert line == "⚠ 79K/150K history · starts at 78K before any work: /tsmax-credits"
 
 
 def test_light_start_and_missing_first_step_stay_quiet(tmp_path):
-    from tokenstretch.adapters.claude_code import _first_history_tokens
+    from tsmax.adapters.claude_code import _first_history_tokens
     prompt = {"type": "user", "message": {"role": "user", "content": [{"type": "text", "text": "hi"}]}}
     tool = {"type": "user", "message": {"role": "user", "content": [{"type": "tool_result", "content": "x"}]}}
     w = _world(tmp_path, [prompt, tool, _row(0, 0, read=20_000), _row(1, 40, read=22_000)])
@@ -317,7 +317,7 @@ def test_small_or_cheaper_helpers_stay_quiet(tmp_path):
 
 
 def test_long_history_warning_says_when_a_fresh_start_pays_back(tmp_path):
-    from tokenstretch.watch import payback_steps
+    from tsmax.watch import payback_steps
     assert payback_steps(133_000, 78_000) == 5 and payback_steps(200_000, 100_000) == 4
     assert payback_steps(80_000, None) is None and payback_steps(70_000, 78_000) is None
     prompt = {"type": "user", "message": {"role": "user", "content": "go"}}
@@ -332,7 +332,7 @@ def test_long_history_warning_says_when_a_fresh_start_pays_back(tmp_path):
 # ---- nudge: the same warning, shown inside the session by a prompt hook ------------------------
 
 def test_nudge_says_the_top_warning_once_then_waits(tmp_path):
-    from tokenstretch.nudge import build_nudge
+    from tsmax.nudge import build_nudge
     w = _world(tmp_path, [_row(0, 0, read=20_000), _row(1, 40, read=199_000, write=1_000)])
     payload = {"transcript_path": str(_log(w)), "session_id": "abcd1234-0000", "hook_event_name": "UserPromptSubmit"}
     clock = [1_000_000.0]
@@ -340,23 +340,23 @@ def test_nudge_says_the_top_warning_once_then_waits(tmp_path):
         first = build_nudge(_ctx(w), payload, now=lambda: clock[0])
         again = build_nudge(_ctx(w), payload, now=lambda: clock[0] + 60)
         later = build_nudge(_ctx(w), payload, now=lambda: clock[0] + 21 * 60)
-    assert first["systemMessage"].startswith("tokenstretch: ") and "200K" in first["systemMessage"]
+    assert first["systemMessage"].startswith("tokenstretch MAX: ") and "200K" in first["systemMessage"]
     extra = first["hookSpecificOutput"]
     assert extra["hookEventName"] == "UserPromptSubmit" and "not a request from the user" in extra["additionalContext"]
     assert again is None                      # same warning a minute later: stay quiet
     assert later is not None                  # still true 21 minutes later: say it once more
-    state = w / "home" / ".tokenstretch" / "nudge" / "abcd1234-0000.json"
+    state = w / "home" / ".tsmax" / "nudge" / "abcd1234-0000.json"
     assert json.loads(state.read_text())["kind"] == "context"
 
 
 def test_nudge_is_silent_when_clean_or_unsure_and_never_fails(tmp_path):
-    from tokenstretch.nudge import build_nudge, run_nudge
+    from tsmax.nudge import build_nudge, run_nudge
     w = _world(tmp_path, [_row(0, 0, read=20_000), _row(1, 40, read=22_000)])
     with credential_guard():
         assert build_nudge(_ctx(w), {"transcript_path": str(_log(w))}) is None          # nothing to warn about
         assert build_nudge(_ctx(w), {}) is None                                         # no session named: no guess
         assert build_nudge(_ctx(w), {"transcript_path": str(w / "root" / "x.jsonl")}) is None
-    assert not (w / "home" / ".tokenstretch" / "nudge").exists()
+    assert not (w / "home" / ".tsmax" / "nudge").exists()
     printed: list[str] = []
     for raw in ("not json", "", json.dumps({"transcript_path": 5})):
         assert run_nudge(w / "home", w / "root", stdin=io.StringIO(raw), out=printed.append) == 0
@@ -364,12 +364,12 @@ def test_nudge_is_silent_when_clean_or_unsure_and_never_fails(tmp_path):
 
 
 def test_nudge_ignores_a_session_id_that_is_not_a_plain_name(tmp_path):
-    from tokenstretch.nudge import build_nudge
+    from tsmax.nudge import build_nudge
     w = _world(tmp_path, [_row(0, 0, read=20_000), _row(1, 40, read=199_000, write=1_000)])
     payload = {"transcript_path": str(_log(w)), "session_id": "../../escape"}
     with credential_guard():
         assert build_nudge(_ctx(w), payload) is not None
-    assert not (w / "home" / ".tokenstretch").exists() or not list((w / "home" / ".tokenstretch").rglob("*.json"))
+    assert not (w / "home" / ".tsmax").exists() or not list((w / "home" / ".tsmax").rglob("*.json"))
 
 
 def test_nudge_cli_prints_one_json_object(tmp_path, monkeypatch):
@@ -378,13 +378,13 @@ def test_nudge_cli_prints_one_json_object(tmp_path, monkeypatch):
     buf = io.StringIO()
     with credential_guard(), redirect_stdout(buf):
         code = main(["nudge", "--home", str(w / "home"), "--root", str(w / "root")])
-    assert code == 0 and json.loads(buf.getvalue())["systemMessage"].startswith("tokenstretch: ")
+    assert code == 0 and json.loads(buf.getvalue())["systemMessage"].startswith("tokenstretch MAX: ")
 
 
 # ---- startup: what a session carries before the first prompt -----------------------------------
 
 def test_startup_sizes_local_parts_largest_first(tmp_path):
-    from tokenstretch.startup import build, format_report
+    from tsmax.startup import build, format_report
     w = _world(tmp_path, [_row(0, 0, read=20_000)])
     home, root = w / "home", w / "root"
     (root / "CLAUDE.md").write_text("x" * 8_000, encoding="utf-8")
@@ -408,7 +408,7 @@ def test_startup_sizes_local_parts_largest_first(tmp_path):
 
 
 def test_startup_cli_json_and_rest(tmp_path, monkeypatch):
-    import tokenstretch.startup as st
+    import tsmax.startup as st
     w = _world(tmp_path, [_row(0, 0, read=20_000)])
     (w / "root" / "CLAUDE.md").write_text("x" * 8_000, encoding="utf-8")
     monkeypatch.setattr(st, "measured_starts", lambda ctx, ad, limit=5: [60_000, 58_000])
@@ -422,7 +422,7 @@ def test_startup_cli_json_and_rest(tmp_path, monkeypatch):
 
 
 def test_startup_sizes_a_connector_by_difference(tmp_path, monkeypatch):
-    import tokenstretch.startup as st
+    import tsmax.startup as st
     w = _world(tmp_path, [_row(0, 0, read=20_000)])
     home, root = w / "home", w / "root"
     mcp = root / ".mcp.json"
@@ -438,7 +438,7 @@ def test_startup_sizes_a_connector_by_difference(tmp_path, monkeypatch):
 
     first = run(60_000, ["big", "small"])
     assert [p["name"] for p in first["unsized"]] == ["big (project)", "small (project)"] and first["turned_off"] == []
-    hist = home / ".tokenstretch" / "startup-history.json"
+    hist = home / ".tsmax" / "startup-history.json"
     assert hist.is_file() and "big (project)|small (project)" in hist.read_text(encoding="utf-8")
 
     same = run(52_000, ["big", "small"], "--no-save")            # same set, 8K lighter: something else changed
@@ -460,12 +460,12 @@ def test_startup_sizes_a_connector_by_difference(tmp_path, monkeypatch):
 
 
 def test_startup_no_save_writes_nothing(tmp_path, monkeypatch):
-    import tokenstretch.startup as st
+    import tsmax.startup as st
     w = _world(tmp_path, [_row(0, 0, read=20_000)])
     monkeypatch.setattr(st, "measured_starts", lambda ctx, ad, limit=5: [60_000])
     with credential_guard(), redirect_stdout(io.StringIO()):
         assert main(["startup", "--home", str(w / "home"), "--root", str(w / "root"), "--sys-snapshot", str(w / "sys"), "--no-save"]) == 0
-    assert not (w / "home" / ".tokenstretch" / "startup-history.json").exists()
+    assert not (w / "home" / ".tsmax" / "startup-history.json").exists()
 
 
 # ---- helper wake-ups ---------------------------------------------------------------------------------
@@ -512,7 +512,7 @@ def test_ordinary_user_messages_are_not_wake_ups(tmp_path):
 
 def test_doctor_w28_reports_helper_wakeups_from_the_logs(tmp_path):
     from argparse import Namespace
-    from tokenstretch.cli import doctor
+    from tsmax.cli import doctor
 
     def ids(w):
         buf = io.StringIO()
@@ -530,16 +530,16 @@ def test_doctor_w28_reports_helper_wakeups_from_the_logs(tmp_path):
 
 
 def test_nudge_points_at_the_dashboard_and_the_doctor(tmp_path):
-    from tokenstretch import dashlink
-    from tokenstretch.nudge import build_nudge, where_to_fix
+    from tsmax import dashlink
+    from tsmax.nudge import build_nudge, where_to_fix
     w = _world(tmp_path, [_row(0, 0, read=20_000), _row(1, 40, read=199_000, write=1_000)])
     home = w / "home"
     payload = {"transcript_path": str(_log(w)), "session_id": "abcd1234-0001", "hook_event_name": "UserPromptSubmit"}
     with credential_guard():
         got = build_nudge(_ctx(w), payload, now=lambda: 1_000_000.0)
-    assert "Run `tokenstretch dashboard` to open your dashboard" in got["systemMessage"]      # no dashboard running
+    assert "Run `tsmax dashboard` to open your dashboard" in got["systemMessage"]      # no dashboard running
     extra = got["hookSpecificOutput"]["additionalContext"]
-    assert "high usage in this session" in extra and "`tokenstretch doctor --usage`" in extra
+    assert "high usage in this session" in extra and "`tsmax doctor --usage`" in extra
     assert "Finish the current request first" in extra
     url = "http://127.0.0.1:8123/abcdefgh12345678/"
     assert dashlink.write_link(home, url, 8123)
@@ -548,8 +548,8 @@ def test_nudge_points_at_the_dashboard_and_the_doctor(tmp_path):
 
 
 def test_doctor_usage_lists_each_fix():
-    from tokenstretch.cli import usage_lines
-    from tokenstretch.watch import WatchWarning
+    from tsmax.cli import usage_lines
+    from tsmax.watch import WatchWarning
     assert "No high usage found" in usage_lines([])[0]
     w = WatchWarning(key=("a", "s", "context"), adapter="Claude Code", session="abcd1234", project="proj",
                      what="History is ~200K tokens.", why="Every step re-reads it.", fix="Type /clear.")
@@ -559,7 +559,7 @@ def test_doctor_usage_lists_each_fix():
 
 
 def test_nudge_at_the_end_of_a_reply_is_a_message_for_the_user_only(tmp_path):
-    from tokenstretch.nudge import build_nudge
+    from tsmax.nudge import build_nudge
     w = _world(tmp_path, [_row(0, 0, read=20_000), _row(1, 40, read=199_000, write=1_000)])
     base = {"transcript_path": str(_log(w)), "session_id": "abcd1234-0002"}
     with credential_guard():
@@ -571,13 +571,13 @@ def test_nudge_at_the_end_of_a_reply_is_a_message_for_the_user_only(tmp_path):
     assert prompt is not None                                   # the prompt note does not silence the end note
     assert set(end) == {"systemMessage"}                        # nothing for the agent: no extra step
     assert "high usage in this session" in end["systemMessage"] and "200K" in end["systemMessage"]
-    assert "`tokenstretch doctor --usage`" in end["systemMessage"]
+    assert "`tsmax doctor --usage`" in end["systemMessage"]
     assert again is None and looping is None
 
 
 def test_prompt_note_is_still_typed_with_the_end_hook_installed(tmp_path):
     # The desktop app folds the end hook's message under "Claude Code notice", so the typed note stays.
-    from tokenstretch.nudge import build_nudge, end_hook_on
+    from tsmax.nudge import build_nudge, end_hook_on
     w = _world(tmp_path, [_row(0, 0, read=20_000), _row(1, 40, read=199_000, write=1_000)])
     home = w / "home"
     settings = home / ".claude" / "settings.json"
@@ -585,7 +585,7 @@ def test_prompt_note_is_still_typed_with_the_end_hook_installed(tmp_path):
     data = json.loads(settings.read_text(encoding="utf-8")) if settings.is_file() else {}
     assert not end_hook_on(home)
     data.setdefault("hooks", {})["Stop"] = [{"hooks": [{"type": "command",
-                                                        "command": "/x/tokenstretch nudge 2>/dev/null || true"}]}]
+                                                        "command": "/x/tsmax nudge 2>/dev/null || true"}]}]
     settings.write_text(json.dumps(data), encoding="utf-8")
     assert end_hook_on(home)
     payload = {"transcript_path": str(_log(w)), "hook_event_name": "UserPromptSubmit", "session_id": "abcd1234-0011"}
@@ -598,39 +598,39 @@ def test_prompt_note_is_still_typed_with_the_end_hook_installed(tmp_path):
 
 
 def test_prompt_note_asks_the_agent_to_write_the_handoff_note_when_history_is_long(tmp_path):
-    from tokenstretch.nudge import build_nudge
+    from tsmax.nudge import build_nudge
     w = _world(tmp_path, [_row(0, 0, read=20_000), _row(1, 40, read=199_000, write=1_000)])
     payload = {"transcript_path": str(_log(w)), "hook_event_name": "UserPromptSubmit"}
     with credential_guard():
         plain = build_nudge(_ctx(w), {**payload, "session_id": "abcd1234-0044"}, now=lambda: 1_000_000.0)
     extra = plain["hookSpecificOutput"]["additionalContext"]
-    assert "do not act on this unless the user asks" in extra and "handoff.md" not in extra   # no shortcut installed
-    skill = w / "home" / ".claude" / "skills" / "handoff" / "SKILL.md"
+    assert "do not act on this unless the user asks" in extra and "tsmax-handoff.md" not in extra   # no shortcut installed
+    skill = w / "home" / ".claude" / "skills" / "tsmax-handoff" / "SKILL.md"
     skill.parent.mkdir(parents=True)
-    skill.write_text("---\\nname: handoff\\n---\\n", encoding="utf-8")
+    skill.write_text("---\\nname: tsmax-handoff\\n---\\n", encoding="utf-8")
     with credential_guard():
         got = build_nudge(_ctx(w), {**payload, "session_id": "abcd1234-0055"}, now=lambda: 1_000_000.0)
     extra = got["hookSpecificOutput"]["additionalContext"]
-    assert "write `.claude/handoff.md`" in extra and "do not read files or run commands" in extra
-    assert "Type /clear, then `/handoff resume`." in extra and "high usage in this session" in extra
+    assert "write `.claude/tsmax-handoff.md`" in extra and "do not read files or run commands" in extra
+    assert "Type /clear, then `/tsmax-handoff resume`." in extra and "high usage in this session" in extra
     assert "do not act on this unless the user asks" not in extra
-    assert "replacing any old one." in extra and "handoff.prev.md" not in extra            # no old note, no cwd
+    assert "replacing any old one." in extra and "tsmax-handoff.prev.md" not in extra            # no old note, no cwd
     # With an old note in the project, the hook keeps a copy itself and keeps both out of commits.
     proj = tmp_path / "proj"
     (proj / ".claude").mkdir(parents=True)
     (proj / ".git").mkdir()
-    (proj / ".claude" / "handoff.md").write_text("Goal: the old task\n", encoding="utf-8")
+    (proj / ".claude" / "tsmax-handoff.md").write_text("Goal: the old task\n", encoding="utf-8")
     with credential_guard():
         got = build_nudge(_ctx(w), {**payload, "session_id": "abcd1234-0066", "cwd": str(proj)},
                           now=lambda: 1_000_000.0)
     extra = got["hookSpecificOutput"]["additionalContext"]
-    assert "a copy of the old one is already kept as `handoff.prev.md`" in extra
-    assert (proj / ".claude" / "handoff.prev.md").read_text() == "Goal: the old task\n"
+    assert "a copy of the old one is already kept as `tsmax-handoff.prev.md`" in extra
+    assert (proj / ".claude" / "tsmax-handoff.prev.md").read_text() == "Goal: the old task\n"
     assert "handoff*.md" in (proj / ".git" / "info" / "exclude").read_text()
 
 
 def test_helper_launch_note_only_for_a_helper_from_a_long_conversation(tmp_path):
-    from tokenstretch.nudge import build_nudge
+    from tsmax.nudge import build_nudge
     w = _world(tmp_path, [_row(0, 0, read=20_000), _row(1, 40, read=199_000, write=1_000)])
     base = {"transcript_path": str(_log(w)), "hook_event_name": "PreToolUse", "session_id": "abcd1234-0022"}
     with credential_guard():
@@ -645,7 +645,7 @@ def test_helper_launch_note_only_for_a_helper_from_a_long_conversation(tmp_path)
 
 
 def test_helper_launch_note_is_silent_in_a_short_conversation(tmp_path):
-    from tokenstretch.nudge import build_nudge
+    from tsmax.nudge import build_nudge
     w = _world(tmp_path, [_row(0, 0, read=20_000), _row(1, 40, read=29_000, write=1_000)])
     payload = {"transcript_path": str(_log(w)), "hook_event_name": "PreToolUse", "session_id": "abcd1234-0033",
                "tool_name": "Agent"}
@@ -654,7 +654,7 @@ def test_helper_launch_note_is_silent_in_a_short_conversation(tmp_path):
 
 
 def test_startup_sizes_what_a_plugin_adds_by_difference(tmp_path, monkeypatch):
-    import tokenstretch.startup as st
+    import tsmax.startup as st
     w = _world(tmp_path, [_row(0, 0, read=20_000)])
     home, root = w / "home", w / "root"
     plug = home / ".claude" / "plugins" / "synced" / "acct" / "viewer"
@@ -676,7 +676,7 @@ def test_startup_sizes_what_a_plugin_adds_by_difference(tmp_path, monkeypatch):
     first = run(60_000)
     viewer = next(p for p in first["parts"] if p["name"] == "viewer")
     assert viewer["tokens"] == 100 and "2 connectors it brings (not sized)" in viewer["kind"]
-    hist = json.loads((home / ".tokenstretch" / "startup-history.json").read_text(encoding="utf-8"))
+    hist = json.loads((home / ".tsmax" / "startup-history.json").read_text(encoding="utf-8"))
     assert "plugin:viewer" in hist["claude-code"]
 
     plug.rename(parked)                                            # switched off: 20K lighter, 100 of it the listing

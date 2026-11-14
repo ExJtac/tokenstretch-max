@@ -7,10 +7,10 @@ from pathlib import Path
 import pytest
 
 from tests.conftest import CANARIES, copy_fixture, credential_guard
-from tokenstretch import checkup, cli
-from tokenstretch.context import build_context
-from tokenstretch.findings import Finding
-from tokenstretch.watch import Watcher, run_watch
+from tsmax import checkup, cli
+from tsmax.context import build_context
+from tsmax.findings import Finding
+from tsmax.watch import Watcher, run_watch
 
 
 def f(fid="W01", source="/x/CLAUDE.md", severity="med", message="12 lines", adapter="claude-code") -> Finding:
@@ -94,7 +94,7 @@ def _forget_one(home: Path) -> None:
 def test_doctor_new_end_to_end(tmp_path, monkeypatch):
     dest = copy_fixture("bloated", tmp_path)
     shown: list[tuple[str, str]] = []
-    monkeypatch.setattr("tokenstretch.watch._notify", lambda title, message: shown.append((title, message)))
+    monkeypatch.setattr("tsmax.watch._notify", lambda title, message: shown.append((title, message)))
 
     code, out, _ = _doctor(dest, "--new", "--notify")
     assert code == 0 and out.startswith("First check: ") and shown == []

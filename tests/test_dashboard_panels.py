@@ -12,14 +12,14 @@ import pytest
 from conftest import credential_guard
 from test_dashboard_weekly import _ctx, _get, _tree, _world, loopback  # noqa: F401  (fixture re-export)
 
-from tokenstretch import dashboard as dmod
-from tokenstretch import dashboard_panels as dp
-from tokenstretch import dashlink
-from tokenstretch import pace as pc
-from tokenstretch import queue as q
-from tokenstretch.auto import run_auto, session_start
-from tokenstretch.cli import main
-from tokenstretch.dashboard import PANELS, DashboardState, render_page
+from tsmax import dashboard as dmod
+from tsmax import dashboard_panels as dp
+from tsmax import dashlink
+from tsmax import pace as pc
+from tsmax import queue as q
+from tsmax.auto import run_auto, session_start
+from tsmax.cli import main
+from tsmax.dashboard import PANELS, DashboardState, render_page
 
 URL = "http://127.0.0.1:8765/abcDEF123_-xyz789abcDEF/"
 NOW = time.time()
@@ -137,7 +137,7 @@ def test_watch_panel_groups_by_kind():
     feed = [{"kind": "context", "what": "big", "fix": "clear", "seen_local": "t"},
             {"kind": "context", "what": "bigger", "fix": "clear2", "seen_local": "t"},
             {"kind": "rereads", "what": "reads", "fix": "stop", "seen_local": "t"}]
-    from tokenstretch.watch import WatchConfig
+    from tsmax.watch import WatchConfig
     p = dp.build_watch(feed, WatchConfig(), str)
     assert [(k["kind"], k["count"]) for k in p["kinds"]] == [("context", 2), ("rereads", 1)]
     assert dp.build_watch([], WatchConfig(), str)["empty"]
@@ -179,7 +179,7 @@ def test_reminder_is_off_until_switched_on(tmp_path):
     assert dashlink.reminder_text(home, {"session_id": "s1"}, NOW, check=lambda p: True) is None
     dashlink.set_remind(home, True)
     text = dashlink.reminder_text(home, {"session_id": "s1"}, NOW, check=lambda p: True)
-    assert text and f"View your tokenstretch dashboard at {URL}" in text
+    assert text and f"View your tsmax dashboard at {URL}" in text
     assert "Do not stop the task" in text and "do not ask the user" in text and len(text) < 400
     dashlink.set_remind(home, False)
     assert dashlink.reminder_text(home, {"session_id": "s2"}, NOW, check=lambda p: True) is None
@@ -201,7 +201,7 @@ def test_reminder_when_no_dashboard_runs_names_the_command_not_a_link(tmp_path):
     home = _home(tmp_path)
     dashlink.set_remind(home, True)
     text = dashlink.reminder_text(home, {"session_id": "s1"}, NOW)
-    assert text and "Run `tokenstretch dashboard`" in text and "http" not in text
+    assert text and "Run `tsmax dashboard`" in text and "http" not in text
 
 
 def test_old_markers_are_forgotten(tmp_path):
@@ -209,7 +209,7 @@ def test_old_markers_are_forgotten(tmp_path):
     dashlink.set_remind(home, True)
     dashlink.reminder_text(home, {"session_id": "old"}, NOW)
     import os
-    marker = home / ".tokenstretch" / "dashremind" / "old.json"
+    marker = home / ".tsmax" / "dashremind" / "old.json"
     os.utime(marker, (NOW - 8 * 86400, NOW - 8 * 86400))
     dashlink.reminder_text(home, {"session_id": "new"}, NOW)
     assert not marker.exists()
@@ -239,12 +239,12 @@ def test_hook_keeps_the_handoff_note_and_adds_the_reminder(tmp_path, monkeypatch
     dashlink.set_remind(home, True)
     proj = tmp_path / "proj"
     (proj / ".claude").mkdir(parents=True)
-    note = proj / ".claude" / "handoff-auto.md"
+    note = proj / ".claude" / "tsmax-handoff-auto.md"
     note.write_text("Goal: ship.\n", encoding="utf-8")
     os.utime(note, (NOW - 60, NOW - 60))
     out = _hook(home, {"hook_event_name": "SessionStart", "source": "startup", "session_id": "s1", "cwd": str(proj)})
     ctx = out[0]["hookSpecificOutput"]["additionalContext"]
-    assert "handoff-auto.md" in ctx and URL in ctx
+    assert "tsmax-handoff-auto.md" in ctx and URL in ctx
 
 
 def test_hook_is_silent_and_reads_nothing_without_a_session_id(tmp_path, monkeypatch):
@@ -258,7 +258,7 @@ def test_hook_is_silent_and_reads_nothing_without_a_session_id(tmp_path, monkeyp
 
 def test_hook_with_a_broken_switch_file_stays_quiet(tmp_path):
     home = _home(tmp_path)
-    (home / ".tokenstretch").mkdir()
+    (home / ".tsmax").mkdir()
     dashlink.remind_path(home).write_text("{{{")
     assert _hook(home, {"hook_event_name": "SessionStart", "source": "startup", "session_id": "s1"}) == []
 
@@ -326,7 +326,7 @@ def test_run_dashboard_leaves_a_link_while_running_and_removes_it(tmp_path, loop
 
 
 def test_reminder_is_given_again_after_a_compaction_with_the_link_of_that_moment(tmp_path):
-    from tokenstretch import auto
+    from tsmax import auto
     home = _home(tmp_path)
     dashlink.set_remind(home, True)
     first = dashlink.reminder_text(home, {"session_id": "s1"}, NOW)
@@ -334,11 +334,11 @@ def test_reminder_is_given_again_after_a_compaction_with_the_link_of_that_moment
     assert dashlink.reminder_text(home, {"session_id": "s1"}, NOW + 5) is None
     dashlink.write_link(home, URL, 8765)
     again = dashlink.reminder_text(home, {"session_id": "s1"}, NOW + 9, check=lambda p: True, again=True)
-    assert again and f"View your tokenstretch dashboard at {URL}" in again
+    assert again and f"View your tsmax dashboard at {URL}" in again
     dashlink.clear_link(home, URL)
     reply = auto.session_start({"source": "compact", "session_id": "s1"}, NOW + 10, home=home)
     ctx = reply["hookSpecificOutput"]["additionalContext"]
-    assert auto.CARRY_ON in ctx and "tokenstretch dashboard" in ctx
+    assert auto.CARRY_ON in ctx and "tsmax dashboard" in ctx
     dashlink.set_remind(home, False)
     reply = auto.session_start({"source": "compact", "session_id": "s1"}, NOW + 11, home=home)
     assert reply["hookSpecificOutput"]["additionalContext"] == auto.CARRY_ON

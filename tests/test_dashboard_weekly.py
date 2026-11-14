@@ -18,11 +18,11 @@ import pytest
 
 from conftest import CANARIES, credential_guard
 
-from tokenstretch.cli import main
-from tokenstretch.context import build_context
-from tokenstretch.dashboard import DashboardState, build_state, make_server, render_page
-from tokenstretch.findings import UsageRecord
-from tokenstretch.weekly import NOT_REPORTED, aggregate, build_weekly, since_setup, week_start
+from tsmax.cli import main
+from tsmax.context import build_context
+from tsmax.dashboard import DashboardState, build_state, make_server, render_page
+from tsmax.findings import UsageRecord
+from tsmax.weekly import NOT_REPORTED, aggregate, build_weekly, since_setup, week_start
 
 UTC = timezone.utc
 NOW = datetime(2026, 11, 11, 18, 0, tzinfo=UTC)  # a Wednesday
@@ -154,7 +154,7 @@ def test_weekly_without_cost_says_not_reported(tmp_path):
 
 def test_bench_results_only_when_files_exist(tmp_path):
     w = _world(tmp_path)
-    d = w / "home" / ".tokenstretch" / "benches" / "20261110T120000"
+    d = w / "home" / ".tsmax" / "benches" / "20261110T120000"
     d.mkdir(parents=True)
     (d / "result.json").write_text(json.dumps({"before": {"input_uncached": 10, "cost_usd": 1.5},
                                                "after": {"input_uncached": 5, "cost_usd": 0.5}}), encoding="utf-8")
@@ -183,7 +183,7 @@ def test_dashboard_state_json(tmp_path):
     assert st["models"][0]["model"] == "claude-opus-4-1"
     assert len(st["weekly"]) == 8 and st["weekly"][-1]["total_tokens"] == o["tokens_week"]
     assert set(st["doctor"]["counts"]) >= {"high", "med", "low", "info"}
-    assert st["setup"]["undo_available"] is False and st["setup"]["undo_command"] == "tokenstretch undo"
+    assert st["setup"]["undo_available"] is False and st["setup"]["undo_command"] == "tsmax undo"
     assert st["bench"] == [] and st["since_setup"] is None
     assert str(w / "home") not in blob  # home paths are shown as ~
 
@@ -352,7 +352,7 @@ def test_server_requires_token(server):
     assert r.getheader("Access-Control-Allow-Origin") is None
     assert "default-src 'none'" in r.getheader("Content-Security-Policy")
     r, body = _get(srv, f"/{token}/")
-    assert r.status == 200 and b"tokenstretch dashboard" in body
+    assert r.status == 200 and b"tsmax dashboard" in body
     assert not re.search(rb"https?://", body)
     assert _get(srv, f"/{token}")[0].status == 302
     assert _get(srv, f"/{token}/api/doctor", method="POST")[0].status == 200
@@ -384,7 +384,7 @@ def test_busy_port_picks_a_free_one(tmp_path, loopback):
 # ---- background builds: requests never build state ------------------------------------------
 
 def test_requests_never_build_state(tmp_path, monkeypatch):
-    from tokenstretch import dashboard as dmod
+    from tsmax import dashboard as dmod
     w = _world(tmp_path)
     ds = DashboardState(_ctx(w))
 
@@ -395,7 +395,7 @@ def test_requests_never_build_state(tmp_path, monkeypatch):
         monkeypatch.setattr(ds, name, boom)
     handler = dmod._make_handler(ds, "tok", 5.0)
     # The page is rendered once, up front, from no state at all.
-    assert "tokenstretch dashboard" in render_page(None)
+    assert "tsmax dashboard" in render_page(None)
     blob = json.loads(ds.latest_json())
     assert blob["warming_up"] is True and blob["pending"] == ["live sessions", "usage logs", "doctor", "instruction files"]
     assert blob["sessions"] is None and blob["doctor"] is None and blob["overview"]["tokens_week"] is None
@@ -408,7 +408,7 @@ def test_html_and_state_routes_do_not_call_builder(server_lazy):
     srv, token, calls = server_lazy
     t0 = time.perf_counter()
     r, body = _get(srv, f"/{token}/")
-    assert r.status == 200 and b"tokenstretch dashboard" in body
+    assert r.status == 200 and b"tsmax dashboard" in body
     r, body = _get(srv, f"/{token}/api/state")
     assert r.status == 200 and json.loads(body)["warming_up"] is True
     r, _ = _get(srv, f"/{token}/api/doctor", method="POST")

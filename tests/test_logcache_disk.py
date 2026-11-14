@@ -7,8 +7,8 @@ import os
 import time
 from contextlib import redirect_stdout
 
-from tokenstretch import logcache
-from tokenstretch.cli import main
+from tsmax import logcache
+from tsmax.cli import main
 
 
 def _old(path, age=600):
@@ -106,7 +106,7 @@ def test_doctor_gives_the_same_answer_cold_warm_and_uncached(tmp_path):
     log = proj / "abc12345.jsonl"
     log.write_text("\n".join(json.dumps(r) for r in rows) + "\n")
     _old(log)
-    store = home / ".tokenstretch" / "cache" / "doctor-logs.json"
+    store = home / ".tsmax" / "cache" / "doctor-logs.json"
     plain = _doctor(home, root, sys_dir, "--no-cache")
     assert not store.exists()                     # --no-cache writes nothing
     cold = _doctor(home, root, sys_dir)

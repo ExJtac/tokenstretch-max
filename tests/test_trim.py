@@ -12,11 +12,11 @@ import pytest
 
 from conftest import CANARIES, credential_guard
 
-import tokenstretch.trim as trim
-from tokenstretch.adapters.base import rules_block
-from tokenstretch.cli import main
-from tokenstretch.context import build_context
-from tokenstretch.trim import Options, analyze, approx_tokens, path_mentions
+import tsmax.trim as trim
+from tsmax.adapters.base import rules_block
+from tsmax.cli import main
+from tsmax.context import build_context
+from tsmax.trim import Options, analyze, approx_tokens, path_mentions
 
 SHARED = "- Always run the full test suite before you say a task is done."
 PNPM = "- Use pnpm, not npm, for every install in this repository."
@@ -167,7 +167,7 @@ def test_dry_run_writes_nothing(tmp_path):
     assert "Dry run: nothing was changed" in out and "--- a/CLAUDE.md" in out and "approx." in out
     assert "per 100 turns" in out
     assert _tree(w) == before
-    assert not (w / "home" / ".tokenstretch").exists()
+    assert not (w / "home" / ".tsmax").exists()
     # --apply without a terminal and without --yes also changes nothing
     out = _cli(w, "--apply", code=1)
     assert "nothing was changed" in out and _tree(w) == before
@@ -182,14 +182,14 @@ def test_apply_then_undo_restores_bytes_exactly(tmp_path):
     originals = {p: p.read_bytes() for p in (w / "root").rglob("*") if p.is_file()}
     originals[w / "home" / ".claude" / "CLAUDE.md"] = (w / "home" / ".claude" / "CLAUDE.md").read_bytes()
     out = _cli(w, "--apply", "--yes", "--move-blocks")
-    assert "backed up and trimmed" in out and "tokenstretch undo" in out
+    assert "backed up and trimmed" in out and "tsmax undo" in out
     new = (w / "root" / "CLAUDE.md").read_text(encoding="utf-8")
     assert new.count(PNPM) == 1 and SHARED not in new and new.count("credit-rules start") == 1
     assert "\n\n\n" not in new and "main.py.   " not in new
     assert crlf.read_bytes() == b"# Copilot\r\n\r\n- Be brief in every single reply.\r\n"
     assert (w / "home" / ".claude" / "CLAUDE.md").read_bytes() == originals[w / "home" / ".claude" / "CLAUDE.md"]
     assert (w / "root" / "docs" / "agent-notes").is_dir()
-    manifests = list((w / "home" / ".tokenstretch" / "manifests").glob("*.json"))
+    manifests = list((w / "home" / ".tsmax" / "manifests").glob("*.json"))
     assert len(manifests) == 1 and json.loads(manifests[0].read_text())["profile"] == "trim"
 
     buf = io.StringIO()
@@ -209,9 +209,9 @@ def test_moved_block_pointer_is_correct(tmp_path):
     text = (w / "root" / "CLAUDE.md").read_text(encoding="utf-8")
     pointers = [l for l in text.splitlines() if l.startswith("See docs/agent-notes/")]
     assert len(pointers) == 3  # log, code block, blob paragraph (tables are report-only)
-    assert pointers[0] == "See docs/agent-notes/claude-2.md when needed (pasted log, 11 lines, moved by `tokenstretch trim`)."
+    assert pointers[0] == "See docs/agent-notes/claude-2.md when needed (pasted log, 11 lines, moved by `tsmax trim`)."
     note = (w / "root" / "docs" / "agent-notes" / "claude-2.md").read_text(encoding="utf-8")
-    assert note == f"# Moved from CLAUDE.md by tokenstretch trim\n\n```\n{LOG}\n```\n"
+    assert note == f"# Moved from CLAUDE.md by tokenstretch MAX trim\n\n```\n{LOG}\n```\n"
     code_note = (w / "root" / "docs" / "agent-notes" / "claude-3.md").read_text(encoding="utf-8")
     assert f"```python\n{CODE}\n```" in code_note
     assert (w / "root" / "docs" / "agent-notes" / "claude-1.md").read_text() == "taken\n"
@@ -272,7 +272,7 @@ def test_path_mentions_rules():
             "not ~/g/h.md, not example.com/i.md, not ../j/k.md, not path/to/file.ext, not @scope/pkg.js, not src/")
     assert [p for _, p in path_mentions(text)] == ["src/a.py", "lib/b.ts", "docs/c.md"]
     assert trim.credential_like("config/.env.production") and trim.credential_like("keys/server.pem")
-    assert trim.credential_like("x/client_secret.json") and not trim.credential_like("tokenstretch/trim.py")
+    assert trim.credential_like("x/client_secret.json") and not trim.credential_like("tsmax/trim.py")
     assert approx_tokens("abcd" * 10) == 10 and approx_tokens("abcde") == 2
 
 
@@ -306,13 +306,13 @@ def test_lean_files_have_nothing_to_change(tmp_path):
 
 
 def test_dashboard_has_instruction_files_card(tmp_path):
-    from tokenstretch.dashboard import DashboardState, render_page
+    from tsmax.dashboard import DashboardState, render_page
     w = _world(tmp_path)
     before = _tree(w)
     with credential_guard():
         st = DashboardState(_ctx(w), tz=None).snapshot()
     ins = st["instructions"]
-    assert ins and ins["command"] == "tokenstretch trim" and ins["findings"] > 0
+    assert ins and ins["command"] == "tsmax trim" and ins["findings"] > 0
     assert {f["display"] for f in ins["files"]} >= {"CLAUDE.md", "AGENTS.md"}
     assert ins["tools"] and ins["saved_per_turn"] > 0 and "characters / 4" in ins["approx"]
     assert 'id="instructions"' in render_page(st) and "Instruction files" in render_page(st)
@@ -323,4 +323,4 @@ def test_doctor_points_at_trim(tmp_path):
     from conftest import run_doctor
     _, findings, _, _ = run_doctor("bloated", tmp_path)
     w01 = [f for f in findings if f["id"] in ("W01", "W02", "W17")]
-    assert w01 and any("tokenstretch trim" in f["fix"] for f in w01)
+    assert w01 and any("tsmax trim" in f["fix"] for f in w01)

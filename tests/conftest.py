@@ -154,7 +154,7 @@ def run_doctor(name: str, tmp_path: Path, *, privacy: bool = False, as_json: boo
     )
     buf = io.StringIO()
     err = io.StringIO()
-    from tokenstretch.cli import doctor
+    from tsmax.cli import doctor
 
     with credential_guard(), redirect_stdout(buf), redirect_stderr(err):
         code = doctor(args)

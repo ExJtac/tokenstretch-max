@@ -4,13 +4,13 @@ import os
 import threading
 import time
 
-from tokenstretch import cli, queue as q
+from tsmax import cli, queue as q
 
 
 def test_add_writes_ready_brief(tmp_path):
     t = q.add_task(tmp_path, "fix the retry", files=["src/a.py"], done="tests pass")
     assert t["id"] == "T0001" and "Work only in this file: `src/a.py`" in t["brief"]
-    assert (tmp_path / ".tokenstretch" / "queue" / "T0001.json").is_file()
+    assert (tmp_path / ".tsmax" / "queue" / "T0001.json").is_file()
     assert q.add_task(tmp_path, "second")["id"] == "T0002"
 
 

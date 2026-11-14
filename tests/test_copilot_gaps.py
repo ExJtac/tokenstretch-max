@@ -7,11 +7,11 @@ from pathlib import Path
 
 from conftest import credential_guard
 
-from tokenstretch.adapters import REGISTRY
-from tokenstretch.bench import HeadlessResult, _in_scope
-from tokenstretch.context import build_context
-from tokenstretch.models import format_suggestion, suggest_tier, tool_picks
-from tokenstretch.setup import collect_findings
+from tsmax.adapters import REGISTRY
+from tsmax.bench import HeadlessResult, _in_scope
+from tsmax.context import build_context
+from tsmax.models import format_suggestion, suggest_tier, tool_picks
+from tsmax.setup import collect_findings
 
 COP = next(a for a in REGISTRY if a.id == "copilot-cli")
 OPC = next(a for a in REGISTRY if a.id == "opencode")

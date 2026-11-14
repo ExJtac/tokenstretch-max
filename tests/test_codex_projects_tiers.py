@@ -10,14 +10,14 @@ from pathlib import Path
 
 from conftest import CANARIES, credential_guard
 
-from tokenstretch.adapters import REGISTRY
-from tokenstretch.cli import main
-from tokenstretch.context import build_context
-from tokenstretch.files import set_toml_root_string
-from tokenstretch.models import tool_picks
-from tokenstretch.setup import collect_status, format_status
-from tokenstretch.watch import _short_project, run_watch
-from tokenstretch.weekly import sessions
+from tsmax.adapters import REGISTRY
+from tsmax.cli import main
+from tsmax.context import build_context
+from tsmax.files import set_toml_root_string
+from tsmax.models import tool_picks
+from tsmax.setup import collect_status, format_status
+from tsmax.watch import _short_project, run_watch
+from tsmax.weekly import sessions
 
 CODEX = next(a for a in REGISTRY if a.id == "codex")
 
@@ -110,7 +110,7 @@ def test_codex_model_default_dry_run_apply_undo(tmp_path):
     out = _cli(w, "model", "default", "--tier", "mid", "--tool", "codex")
     assert "Dry run" in out and "model: gpt-6-astra -> gpt-6.1-sol" in out
     assert cfg.read_bytes() == original
-    assert not (w / "home" / ".tokenstretch" / "manifests").exists()
+    assert not (w / "home" / ".tsmax" / "manifests").exists()
 
     out = _cli(w, "model", "default", "--tier", "mid", "--tool", "codex", "--apply")
     assert "backed up" in out
@@ -162,7 +162,7 @@ def test_no_adapter_repeats_a_privacy_finding_in_doctor(tmp_path):
 # ---- adapter-gaps v0.4 follow-ups --------------------------------------------------------
 
 def test_gemini_buckets_add_up_to_total():
-    from tokenstretch.adapters.gemini_cli import _gemini_record
+    from tsmax.adapters.gemini_cli import _gemini_record
     tokens = {"input": 10_000, "cached": 8_000, "output": 300, "thoughts": 120, "tool": 450, "total": 10_870}
     r = _gemini_record("m1", {"tokens": tokens, "model": "gemini-3.8-flash"}, "s", None, Path("x.jsonl"), None, "gemini-cli")
     assert (r.input_tokens, r.cache_read_tokens, r.output_tokens, r.reasoning_tokens) == (2_450, 8_000, 300, 120)
@@ -171,7 +171,7 @@ def test_gemini_buckets_add_up_to_total():
 
 
 def test_codex_light_alternative_terra_in_suggest():
-    from tokenstretch.models import format_suggestion, suggest_tier
+    from tsmax.models import format_suggestion, suggest_tier
     picks = tool_picks(None, "light", adapters=[CODEX])
     assert picks[0]["alternatives"] == ["gpt-6.1-terra"]
     text = "\n".join(format_suggestion(suggest_tier("rename foo"), picks))
