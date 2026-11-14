@@ -269,3 +269,61 @@ def test_legacy_dict_entrypoint_returns_typed_contract_shape(context):
     got=OtherProvider().run_headless_task(context,{'operation':'plan','prompt':'plan','tier':'top'},
         {'purpose':'conductor','authorized':True,'sandbox_dir':str(context.root),'runner':runner})
     assert got['status']=='completed' and got['requested_model']=='synthetic-big' and got['effective_model'] is None
+
+
+def test_codex_conductor_native_controls_disable_optional_context_and_pin_effort(installed):
+    adapter = CodexAdapter()
+    for operation in ('plan', 'task'):
+        cmd = adapter.conductor_command(installed, request(installed, operation=operation), 'gpt-6.1-sol')
+        overrides = [cmd.argv[i+1] for i, value in enumerate(cmd.argv) if value == '--config']
+        assert len(overrides) == len(set(value.split('=', 1)[0] for value in overrides))
+        assert set(v for v in overrides if not v.startswith(('skills.config=', 'developer_instructions='))) == {
+            'model_reasoning_effort="high"', 'project_doc_max_bytes=0',
+            'skills.bundled.enabled=false', 'skills.include_instructions=false',
+            'features.skill_search=false', 'features.skill_mcp_dependency_install=false',
+            'features.hooks=false', 'features.apps=false', 'features.plugins=false',
+            'features.remote_plugin=false', 'features.memories=false',
+            'features.multi_agent=false', 'features.multi_agent_v2=false',
+            'features.shell_snapshot=false',
+            'shell_environment_policy.experimental_use_profile=false',
+            'shell_environment_policy.ignore_default_excludes=false',
+            'web_search="disabled"', 'analytics.enabled=false', 'otel.exporter="none"',
+            'otel.trace_exporter="none"', 'otel.metrics_exporter="none"',
+        }
+        assert '--ignore-rules' not in cmd.argv
+        assert '--dangerously-bypass-hook-trust' not in cmd.argv
+        assert cmd.argv[cmd.argv.index('--model')+1] == 'gpt-6.1-sol'
+        assert cmd.env == {'DO_NOT_TRACK': '1'}
+    limits = ' '.join(adapter.conductor_capabilities(installed).limitations)
+    assert 'high' in limits and 'global AGENTS' in limits
+
+
+def test_codex_native_skill_rules_and_developer_instruction_are_explicit(installed):
+    import tomllib
+    cmd = CodexAdapter().conductor_command(installed, request(installed), 'gpt-6.1-sol')
+    config = tomllib.loads('\n'.join(cmd.argv[i+1] for i, value in enumerate(cmd.argv) if value == '--config'))
+    rules = config['skills']['config']
+    assert all(rule['enabled'] is False for rule in rules)
+    assert {r['name'] for r in rules if 'name' in r} == {'caveman', 'tokenstretch', 'tsmax'}
+    paths = {r['path'] for r in rules if 'path' in r}
+    assert str(installed.home / '.agents/skills/caveman/SKILL.md') in paths
+    assert str(installed.home / '.codex/skills/tokenstretch/SKILL.md') in paths
+    assert str(installed.root / '.agents/skills/tsmax/SKILL.md') in paths
+    assert 'Do not invoke RTK, Caveman, Tokenstretch, tsmax' in config['developer_instructions']
+    assert 'outside this project' in config['developer_instructions']
+    assert config['model_reasoning_effort'] == 'high'
+
+
+def test_codex_commentary_does_not_corrupt_final_structured_plan_and_native_usage():
+    plan = {"tasks": [{"id": "T1", "title": "Synthetic plan"}]}
+    events = [
+        {"type": "item.completed", "item": {"type": "agent_message", "text": "I will inspect the project."}},
+        {"type": "item.completed", "item": {"type": "command_execution", "command": "pwd", "exit_code": 0}},
+        {"type": "item.completed", "item": {"type": "agent_message", "text": json.dumps(plan)}},
+        {"type": "turn.completed", "usage": {"input_tokens": 100, "cached_input_tokens": 60,
+            "cache_write_input_tokens": 0, "output_tokens": 20, "reasoning_output_tokens": 4}},
+    ]
+    got = CodexAdapter().parse_conductor_output(ConductorExecution(0, '\n'.join(map(json.dumps, events))), 'requested')
+    assert got.status == 'completed' and json.loads(got.text) == plan
+    assert got.usage['cache_write_tokens'] == 0 and got.usage['reasoning_tokens'] == 4
+    assert got.usage['output_tokens'] == 20 and got.usage['reasoning_included_in_output']

@@ -13,6 +13,8 @@
 - Preserve source permissions and support undoable deletions; prepare secure backups and the complete undo manifest before source mutations.
 - Add reviewed project-local solved patterns with historical verification evidence, backup/undo and bounded suggestions before planning.
 - Add optional preview-first local text assistance through installed Ollama, numeric-loopback transport, strict local-model metadata and explicit one-inference authorization; no downloads or file edits.
+- Fix native Codex plan parsing when progress messages precede the final JSON; preserve optional cache-write and reasoning usage fields.
+- Pin explicit high effort in the verified Codex execution profile and disable optional skill context, hooks, plugins, memory and external optimization helpers without changing native login or bypassing permissions.
 
 The dated releases below are inherited upstream history, not MAX releases.
 

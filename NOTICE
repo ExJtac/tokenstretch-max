@@ -1,1 +1,5 @@
 tokenstretch MAX is based on tokenstretch (https://github.com/ExJtac/tokenstretch).
+
+The public history retains the development commits with privacy redactions to
+personal information and automation attribution. Redacted commit identifiers
+differ from the original upstream history available at the link above.
