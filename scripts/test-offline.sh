@@ -1,6 +1,6 @@
 #!/bin/sh
 # Run the full suite with OS-level external networking denied, including children.
-# Loopback stays available for the inherited local dashboard tests.
+# Loopback stays available for dashboard and synthetic local-runtime tests.
 # No fallback: an unavailable sandbox is a failure, not an offline test pass.
 set -eu
 

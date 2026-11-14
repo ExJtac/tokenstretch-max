@@ -2,7 +2,7 @@
 
 A separate, local-first offshoot of [tokenstretch](https://github.com/ExJtac/tokenstretch), with an isolated Python package, command, installation, and state directory. MIT licensed; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-**Not released yet.** Based on tokenstretch 0.9.6, MAX adds a local project map, verification gate, provider-neutral planner/runner and reusable procedures. MAX reports version `0.1.0.dev0`, identifying an unreleased development build. The GitHub repository and release installer are not published yet.
+**Not released yet.** Based on tokenstretch 0.9.6, MAX adds a local project map, verification gate, provider-neutral planner/runner, reusable procedures and optional local text assistance. MAX reports version `0.1.0.dev0`, identifying an unreleased development build. The GitHub repository and release installer are not published yet.
 
 ## What works today
 
@@ -143,12 +143,25 @@ The preview shows the procedure, applicability, limitations and original verific
 
 Saving preserves historical evidence. If later source changes differ from the verified snapshot, the preview and saved record say so; that does not establish current correctness. A failed task or missing verification record cannot supply a pattern. New planning includes at most three relevant, bounded summaries as reference material. Every new task still needs its own checks.
 
-Optional installed local text assistance follows.
+## Optional local text assistance
+
+If Ollama and a suitable model are already installed and the runtime is running:
+
+```bash
+tsmax local status
+tsmax local summary --model EXACT_LOCAL_MODEL --stdin       # metadata preview
+tsmax local handoff --model EXACT_LOCAL_MODEL --stdin --run # one local inference
+tsmax local commit-message --model EXACT_LOCAL_MODEL --stdin --run
+```
+
+Supply text on standard input and finish with EOF, or use `--text`. Input and output are bounded to 16,000 UTF-8 bytes; each HTTP request has a total deadline. Preview does not send the supplied text. `--run` authorizes one generation and returns a text proposal; it does not edit files, execute the proposal or complete a coding task. MAX saves no prompts or outputs; the existing runtime controls its own logging.
+
+Only numeric loopback HTTP endpoints are accepted (default `http://127.0.0.1:11434`), without DNS, environment proxies, redirects or retries. Model metadata must establish local GGUF weights and completion support; cloud/remote models and ambiguous metadata are refused. There are no model installation, download or daemon-start commands. This trusts the installed runtime's metadata, not a cryptographically verified daemon, and does not contain the daemon's network access. Stop concurrent model-management operations during a request. llama.cpp command detection reports availability only; its execution profile is not implemented. Real Ollama inference has not yet been tested in this development build; tests use synthetic local servers.
 
 ## Privacy and boundaries
 
 - No telemetry, analytics, or update checks. The inherited `update` command reports that remote checks are disabled.
-- No internet calls except pinned installations you confirm and calls made by your own logged-in AI CLI. The map makes no network calls. The dashboard uses localhost; later Ollama support will also be limited to localhost, with no redirects, cloud models or automatic downloads.
+- No internet calls except pinned installations you confirm and calls made by your own logged-in AI CLI. The map makes no network calls. The dashboard and optional Ollama client use localhost, with no redirects, cloud models or automatic downloads in the local client.
 - Credential and login files are never read, copied, or proxied; checking existence is allowed.
 - API proxy installation is disabled in MAX. Doctor can still identify proxy risks in an existing setup.
 - Tool-specific paths and configuration belong to their adapters.

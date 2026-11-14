@@ -1,6 +1,6 @@
 # tokenstretch MAX: Conductor design
 
-**Status: project map, standalone verification gate, provider-neutral planning/execution and reusable patterns implemented.** Optional installed local models follow. The owner deferred Claude-specific benchmark work so the main build proceeds independently of any one provider. The foundation preserves upstream history and licensing while separating the `tsmax` package, command, and state from tokenstretch. Runtime stays Python 3.11+ and standard library only.
+**Status: project map, standalone verification gate, provider-neutral planning/execution, reusable patterns and optional local text offload implemented.** The owner deferred provider-specific benchmark work so the main build proceeds independently of any one provider. The foundation preserves upstream history and licensing while separating the `tsmax` package, command, and state from tokenstretch. Runtime stays Python 3.11+ and standard library only.
 
 ## Flow and ownership
 
@@ -22,6 +22,7 @@ The core has no preferred AI provider. Select a tool explicitly, negotiate its c
 | `tsmax run` | Work in a separate Git worktree, verify each task, and ask before applying its reviewed changes. |
 | `tsmax run --prepare` | Prepare or inspect staging without model calls; missing dependencies need explicit local setup. |
 | `tsmax skills suggest "<task>"` / `save TASK` | Search local patterns; preview saving a verified approach, with explicit apply. |
+| `tsmax local status` / `summary` / `handoff` / `commit-message` | Inspect an existing local runtime or preview a text operation; `--run` authorizes one inference. |
 | `tsmax undo [MANIFEST]` | Restore a recorded change or task checkpoint, preserving later edits or refusing on conflict. |
 
 ## Local state and project map
@@ -46,7 +47,7 @@ The plan names tasks, dependencies, allowed files, acceptance tests, and checks;
 
 After original-project verification, offer a concise reusable procedure with applicability, limitations, and recorded evidence. Save project-local `.tsmax/skills/<slug>/{pattern.json,SKILL.md}` only after exact-preview approval, through backup/undo. Historical completed tasks remain eligible when later work changes the tree, with an explicit current-source mismatch label and the original verification timestamp/hash. This does not certify current correctness or replace a new task's gate. Suggest at most three bounded lexical matches before planning without loading the entire library. Provider-specific user skill export is deferred.
 
-Optional offload uses installed local models and the same gate; never download a model automatically. Owner-approved network exceptions include loopback-only Ollama, like the dashboard: numeric loopback addresses, no redirects, no environment proxies, bounded requests, no cloud-backed models or pull/download calls. This support comes later; the map needs no model or network. No telemetry, analytics, update checks, subscription proxies, account sharing, or rate-limit workarounds. Internet exceptions remain confirmed pinned installs and calls made by the user's own logged-in CLI. Enforce offline check processes and loopback-only UI/offload boundaries; Python socket mocks alone are insufficient.
+Optional offload provides summary, handoff and commit-message proposals from supplied text. Preview checks metadata without sending that text; `--run` authorizes one generation. It never applies changes or completes a coding task; subsequent code changes still need the gate. The Ollama adapter requires an installed runtime and validated local GGUF model metadata. It uses numeric loopback sockets without DNS, redirects, environment proxies, cloud-backed models or pull/download calls. Input/output/body limits and request-wide deadlines bound operations. Runtime identity, its own logging/network behavior and concurrent model-tag mutation remain explicit limitations. No llama.cpp execution profile is implemented. The map needs no model or network. No telemetry, analytics, update checks, subscription proxies, account sharing, or rate-limit workarounds. Internet exceptions remain confirmed pinned installs and calls made by the user's own logged-in CLI. Enforce offline check processes and loopback-only UI/offload boundaries; synthetic real-socket tests complement transport unit tests. Live local-model inference is untested.
 
 Ship separate tested commits: foundation, map, verify, plan/run, patterns, optional offload. Each reports normal and network-blocked suite counts and open issues. Tests use fake headless runners, credential canaries, stale-result checks, incremental-index cases, and undo/conflict scenarios. An unavailable network sandbox is reported as unverified, not a pass.
 

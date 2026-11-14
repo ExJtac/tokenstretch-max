@@ -1,8 +1,13 @@
-"""P00: the kit makes zero network calls; the suite must pass with the network blocked."""
+"""P00: network imports are confined to reviewed loopback boundaries.
+
+The full suite must pass with external networking blocked. Authorized official
+CLI calls and confirmed pinned installs have their own subprocess boundaries.
+This static check catches accidental imports; it is not network containment.
+"""
 from __future__ import annotations
 
+import ast
 import os
-import re
 import subprocess
 import sys
 from pathlib import Path
@@ -12,21 +17,46 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 SRC = REPO / "tsmax"
 
-# Imports that would let doctor/bench (or a future module outside install-apply) hit the network.
-IMPORT_RE = re.compile(
-    r"^\s*(?:import\s+(urllib|requests|httpx|aiohttp|httplib)|"
-    r"from\s+(urllib|requests|httpx|aiohttp|http\.client|httpx|httplib)\b)",
-    re.M,
-)
+NETWORK_MODULES = {'socket', 'http', 'urllib', 'requests', 'httpx', 'aiohttp', 'httplib'}
+ALLOWED_IMPORTS = {
+    'dashboard.py': {'socket', 'http.server'},
+    'dashlink.py': {'socket'},
+    'adapters/ollama_local.py': {'socket', 'http.client'},
+}
 
 
-def test_p00_source_has_no_network_imports():
+def network_imports(source):
+    found = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Import):
+            names = [alias.name for alias in node.names]
+        elif isinstance(node, ast.ImportFrom) and not node.level:
+            names = [node.module or '']
+        else:
+            continue
+        found.update(name for name in names if name.split('.')[0] in NETWORK_MODULES)
+    return found
+
+
+def test_p00_network_imports_stay_in_reviewed_loopback_modules():
     hits = []
     for path in SRC.rglob("*.py"):
-        text = path.read_text(encoding="utf-8")
-        if IMPORT_RE.search(text):
-            hits.append(str(path.relative_to(REPO)))
+        imports = network_imports(path.read_text(encoding="utf-8"))
+        unexpected = imports - ALLOWED_IMPORTS.get(path.relative_to(SRC).as_posix(), set())
+        if unexpected:
+            hits.append((str(path.relative_to(REPO)), sorted(unexpected)))
     assert hits == []
+
+
+@pytest.mark.parametrize('source, expected', [
+    ('import http.client', {'http.client'}),
+    ('import json, requests as client', {'requests'}),
+    ('from urllib import request', {'urllib'}),
+    ('from socket import socket as connect', {'socket'}),
+    ('from . import local_offload', set()),
+])
+def test_p00_import_check_covers_dotted_and_aliased_forms(source, expected):
+    assert network_imports(source) == expected
 
 
 @pytest.mark.p00_outer

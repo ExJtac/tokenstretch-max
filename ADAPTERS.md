@@ -46,9 +46,17 @@ Conductor's typed response separately preserves unknown usage fields as `None`, 
 
 HookPlan items, mapped inside the adapters (not the core): `pre_tool_shell_filter`, `pre_read_gate`, `session_start_note`.
 
-Privacy contract: adapters never fetch, never copy or symlink credential files, never open them (stat only: presence, mode, and permissions via `ctx.exists()` / `ctx.file_stat()`), and never invent savings. Cursor `state.vscdb` is never opened.
+Privacy contract: coding-tool adapters never fetch over HTTP, never copy or symlink credential files, never open them (stat only: presence, mode, and permissions via `ctx.exists()` / `ctx.file_stat()`), and never invent savings. Official CLI execution is separately authorized. The optional local runtime transport described below is restricted to numeric loopback. Cursor `state.vscdb` is never opened.
 
 `REGISTRY` is Host, Claude Code, Codex, Gemini CLI, Copilot CLI, then the doctor-only adapters (Cursor, Aider, OpenCode, Cline). Claude Code, Codex, Gemini CLI, and Copilot CLI are tier 1. Host and the doctor-only adapters are tier 2. Doctor-only adapters implement `detect`, `read_config`, `list_instruction_files`, and `list_mcp_servers`, and plug existing check IDs. `install_hooks` returns no changes (`refused: doctor-only`). `run_headless_task` raises `HeadlessRefused` even with `--bench`.
+
+## Optional local runtime (`adapters/ollama_local.py`)
+
+This separate text-only interface is not a Conductor worker or a fallback provider. `status()` checks an installed Ollama executable and local runtime metadata; `inspect(model)` requires an exact, unique local model with positive size, SHA-256 digest, GGUF format, architecture/parameter count and completion capability. Nested cloud/remote indicators refuse. `generate(evidence, prompt)` rechecks model digest/size, then sends one raw nonstreaming generation with no conversation history. The core permits summary, handoff and commit-message proposals, with default metadata preview and explicit `--run` for inference.
+
+The adapter owns runtime command names, HTTP paths and protocol details. The transport accepts numeric loopback addresses only and directly creates a matching address-family socket. It never resolves DNS or uses environment proxies, redirects or automatic retries. Only version, tags, show and generate endpoints are permitted; there are no download/install/start operations. JSON is bounded with duplicate-field/nesting checks, generation is limited to 1,024 tokens and 16,000 output bytes, and every request has a wall-clock deadline. Fixture tests exercise real loopback sockets under the external-network block.
+
+Locality depends on the installed runtime's reported metadata. MAX neither authenticates the daemon cryptographically nor contains its network access; concurrent model-tag changes and runtime-owned logging remain limitations. No actual Ollama inference is verified in this build. llama.cpp executables can be reported but have no execution profile. These capabilities do not require credentials or read model blobs/configuration files.
 
 ## Claude Code (`adapters/claude_code.py`)
 
