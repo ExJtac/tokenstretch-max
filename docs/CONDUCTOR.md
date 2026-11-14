@@ -1,6 +1,6 @@
 # tokenstretch MAX: Conductor design
 
-**Status: revised following owner review; project map is the first implementation milestone.** Ship the map and verification gate independently before planning and execution. The foundation preserves upstream history and licensing while separating the `tsmax` package, command, and state from tokenstretch. Runtime stays Python 3.11+ and standard library only.
+**Status: project map and standalone verification gate implemented; planning and execution follow the private map benchmark.** The foundation preserves upstream history and licensing while separating the `tsmax` package, command, and state from tokenstretch. Runtime stays Python 3.11+ and standard library only.
 
 ## Flow and ownership
 
@@ -15,7 +15,7 @@ Small core modules own indexing, planning, scheduling, verification, and pattern
 | `tsmax map status` | Report indexed files, freshness, skipped files, and extraction limits. |
 | `tsmax map serve` | Expose query/status through read-only MCP on stdio; no listening socket. |
 | `tsmax map install --tool TOOL` | Preview adapter-owned MCP/hook changes; `--apply` uses backup and undo. |
-| `tsmax verify` | Detect and execute the project's checks; record results for the current content hashes. |
+| `tsmax verify [--run]` | Preview detected checks; explicit `--run` executes them offline and records content-bound results. |
 | `tsmax plan "<goal>"` | Suggest matching patterns, then use the selected tool's top model to write `.tsmax/plan.md`. |
 | `tsmax run` | Work in a separate Git worktree, verify each task, and ask before applying its reviewed changes. |
 | `tsmax skills suggest "<task>"` / `save TASK` | Search local patterns; preview saving a verified approach, with explicit apply. |
@@ -31,7 +31,7 @@ MCP exposes no write or shell tools. The adapter chooses a supported stdio MCP i
 
 ## Verification, planning, and execution
 
-Detect existing test, lint, and typecheck commands without installing dependencies. Record approved argv, required checks, and acceptance criteria before execution; project configuration is executable input, not automatic authorization. Run checks in staging with bounded output/time and process-tree termination. Missing tools, zero collected tests, skipped required checks, timeout, or absent acceptance evidence mean **incomplete**. Bind results to source/test/configuration hashes, commands, tool versions and dependency locks; compare hashes before and after checks and after application. Edits invalidate results; worker output cannot certify its own gate. Optional screenshots use an installed browser with external requests and redirects blocked.
+Detect existing test, lint, and typecheck commands without installing dependencies. Record approved argv, required checks, and acceptance criteria before execution; project configuration is executable input, not automatic authorization. The standalone gate runs in the selected root; the future runner supplies its staging worktree. Bound output/time and terminate the process group. Checks must be synchronous: detached jobs are unsupported, and descendant quiescence is not verified. Require OS-level external-network isolation, a temporary home and reduced environment; this does not contain host filesystem access. Missing tools, zero collected tests, reported skipped tests, timeout, or absent supported test evidence mean **incomplete**. Bind results to observed source/test/configuration hashes, commands, executable metadata and dependency locks. Dynamically loaded external inputs remain a limitation; this is not a hermetic build. Compare hashes before and after checks, immediately before applying, and after application. Edits invalidate results; worker output cannot certify its own gate. Optional screenshots are deferred and will require an installed browser with external requests and redirects blocked.
 
 The plan names tasks, dependencies, allowed files, acceptance tests, and checks; validate structure and paths locally. Workers receive only their spec, map slice, and necessary excerpts in a fresh official CLI session. Only the gate completes a task. Two failed inexpensive attempts allow one stronger-model attempt, using bounded, redacted failures plus spec/map slices. Failed escalation becomes `needs-review`; missing dependencies/authentication or quota failures stop. Persist attempts before dispatch, including interrupted attempts; resume cannot reset caps or replay uncertain work. Explicit authorization covers planning and worker CLI calls with task/run call limits. Unknown usage stays unknown; dollar caps are advisory unless the provider enforces them.
 

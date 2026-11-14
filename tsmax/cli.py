@@ -761,6 +761,8 @@ def main(argv=None) -> int:
 
     from .map_cli import add_parser as add_map_parser
     add_map_parser(sub)
+    from .verify_cli import add_parser as add_verify_parser
+    add_verify_parser(sub)
 
     d = sub.add_parser("doctor", help="read-only local audit (no network)")
     _add_context_args(d)
@@ -1112,6 +1114,9 @@ def main(argv=None) -> int:
     # ---- end pace parser ----
 
     a = p.parse_args(argv)
+    if a.cmd == "verify":
+        from .verify_cli import run as run_verify
+        return run_verify(a)
     if a.cmd == "map":
         from .map_cli import run as run_map
         return run_map(a)

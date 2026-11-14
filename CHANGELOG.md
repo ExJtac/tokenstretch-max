@@ -8,6 +8,7 @@
 - Add a local incremental project map with Python symbols, approximate JavaScript/TypeScript extraction, bounded queries and freshness reports.
 - Add read-only stdio MCP and a backed-up Claude Code project integration, plus secure map-state writes and undo.
 - Revise the Conductor plan around independent map/gate releases, reviewed worktree changes, later local Ollama support and a map-only benchmark.
+- Add preview-first `verify` with explicit command authorization, mandatory external-network isolation, bounded synchronous checks, content fingerprints, and private undoable results.
 
 The dated releases below are inherited upstream history, not MAX releases.
 

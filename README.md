@@ -2,7 +2,7 @@
 
 A separate, local-first offshoot of [tokenstretch](https://github.com/ExJtac/tokenstretch), with an isolated Python package, command, installation, and state directory. MIT licensed; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-**Not released yet.** Based on tokenstretch 0.9.6, MAX now adds a local project map. The test gate and task runner are planned next. MAX reports version `0.1.0.dev0`, identifying an unreleased development build. The GitHub repository and release installer are not published yet.
+**Not released yet.** Based on tokenstretch 0.9.6, MAX now adds a local project map and a standalone verification gate. Planning and task execution are next. MAX reports version `0.1.0.dev0`, identifying an unreleased development build. The GitHub repository and release installer are not published yet.
 
 ## What works today
 
@@ -83,9 +83,27 @@ tsmax map install --tool claude --apply
 
 This adds a `tsmax-map` server to the project's `.mcp.json`, preserving other servers and backing up the change. `tsmax undo` restores it. The server answers map queries and status requests over stdio, with no listening port or write tools. Automatic installation for other clients is not implemented yet. `tsmax map serve --root /path/to/project` also provides the stdio server for manual configuration. A configuration created from a source checkout needs that checkout and Python interpreter to remain available.
 
+## Verify project checks
+
+Preview the project's detected tests, linter and typecheck, then authorize their execution:
+
+```bash
+tsmax verify
+tsmax verify --run
+tsmax verify --check test '["python3","-m","pytest","-q"]' --run
+```
+
+`--check KIND JSON_ARGV` supplies an exact command and replaces detected commands of that kind. Kinds are `test`, `lint`, `typecheck` and `acceptance`. Ambiguous or missing required commands need an explicit choice. MAX uses installed tools and does not install dependencies. Checks execute in the selected project directory; use `--root` to select another copy. They can change files, so review the preview first. The future task runner will supply a separate worktree.
+
+Checks run with external networking blocked by the operating system and a temporary home with a reduced environment. Localhost is allowed where the platform supports it. If isolation cannot be established, verification stays incomplete. This is network isolation, not filesystem containment: authorized project code can access host files. Output and execution time are bounded; cleanup covers the process group. Use synchronous checks that wait for their children. Detached background jobs are unsupported, and MAX cannot certify that every descendant has exited.
+
+Only passed required checks with unchanged source, test, configuration and lock hashes produce a passed record. Missing tools, zero tests, reported skipped tests, unsupported test summaries, timeout or incomplete input snapshots remain incomplete. Test-summary recognition currently covers pytest, unittest, Jest/Vitest and TAP; authorized lint/typecheck/acceptance commands use exit status. Results are point-in-time evidence: later edits require verification again. Tool identity uses filesystem metadata, and dynamically loaded external inputs are not fully tracked.
+
+Private records live in `.tsmax/verify/`, with backups and undo. Exit codes are `0` for preview/pass, `1` for failure and `2` for incomplete; `--json` returns structured evidence. Optional UI screenshots are not implemented yet.
+
 ## Conductor plan
 
-Next comes a standalone test gate, followed by a map-only benchmark before planning and execution. The first runner will use a separate Git worktree and ask before applying each task's verified changes; a worktree is not a sandbox. Later work adds reusable approaches and optional models already installed locally. See the revised [Conductor design](docs/CONDUCTOR.md) and [decisions](docs/DECISIONS.md). `tsmax verify`, `tsmax plan`, and `tsmax run` are not implemented yet.
+Next comes a map-only benchmark before planning and execution. The first runner will use a separate Git worktree and ask before applying each task's verified changes; a worktree is not a sandbox. Later work adds reusable approaches and optional models already installed locally. See the revised [Conductor design](docs/CONDUCTOR.md) and [decisions](docs/DECISIONS.md). `tsmax plan` and `tsmax run` are not implemented yet.
 
 ## Privacy and boundaries
 
