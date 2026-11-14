@@ -1,0 +1,50 @@
+# tokenstretch MAX: Conductor design
+
+**Status: proposed; no Conductor commands are implemented yet.** Review this design before the project-map implementation (PR 2). The foundation preserves upstream history and licensing while separating the `tsmax` package, command, and state from tokenstretch. Runtime stays Python 3.11+ and standard library only.
+
+## Flow and ownership
+
+`goal → skill suggestions + project map → top-model plan → fresh light/mid task → verify → done or escalate`
+
+Small core modules own indexing, planning, scheduling, verification, and patterns. Adapters own every provider-specific path, model choice, command, hook, and configuration change. Reuse the existing queue's claims and file-overlap checks, brief formatting, usage normalization, and installer manifests; do not replace those systems. Start with sequential tasks; concurrency requires disjoint file ownership and independent gates.
+
+| Proposed command | Behavior |
+|---|---|
+| `tsmax map build` | Build or incrementally refresh this project's local index. |
+| `tsmax map query "where is login"` | Return at most 10 ranked `file:line` results with short symbol/summary text. |
+| `tsmax map status` | Report indexed files, freshness, skipped files, and extraction limits. |
+| `tsmax map serve` | Expose query/status through read-only MCP on stdio; no listening socket. |
+| `tsmax map install --tool TOOL` | Preview adapter-owned MCP/hook changes; `--apply` uses backup and undo. |
+| `tsmax verify` | Detect and execute the project's checks; record results for the current content hashes. |
+| `tsmax plan "<goal>"` | Suggest matching patterns, then use the selected tool's top model to write `.tsmax/plan.md`. |
+| `tsmax run` | Execute the validated plan in fresh sessions and require the gate after each task. |
+| `tsmax skills suggest "<task>"` / `save TASK` | Search local patterns; preview saving a verified approach, with explicit apply. |
+| `tsmax undo [MANIFEST]` | Restore a recorded change or task checkpoint, preserving later edits or refusing on conflict. |
+
+## Local state and project map
+
+Project `.tsmax/` holds `map.sqlite3`, `decisions.jsonl`, `plan.md`, validated `plan.json`, queue state, approved verification commands, and per-run results. Records contain relative paths, SHA-256 hashes, symbols/line numbers, imports, deterministic one-line summaries, decisions, task dependencies, attempts, check exits, durations, and reported usage. Bounded diagnostic logs and optional screenshots stay local. `~/.tsmax/` owns private backups and manifests; neither store reads tokenstretch's state. Adding a local Git exclusion is itself backed up and undoable.
+
+Enumerate tracked and eligible untracked files; respect ignores and exclude generated/binary/oversized files, `.tsmax`, credentials, and login stores before opening. One read policy covers indexing, excerpts, imports, and checkpoints: adapter-owned credential exclusions plus secret-file exclusions, no-follow opens, no symlink ancestors or escaping paths. Recheck identity when opening; ambiguous files are skipped, never read to classify them. Use Git diff as a hint and hashes as authority, including deletions, renames, untracked edits, and non-Git projects. Re-extract changed files transactionally. Python uses `ast`; other languages use bounded lexical extraction marked approximate. Rank path, symbol, import, and text matches deterministically. Summaries need no model; optional embeddings require an installed offline model.
+
+MCP exposes no write or shell tools. The adapter chooses a supported stdio MCP integration or a small hook; installer plans show the exact change and preserve existing configuration.
+
+## Verification, planning, and execution
+
+Detect existing test, lint, and typecheck commands without installing dependencies. Record approved argv, required checks, and acceptance criteria before execution; project configuration is executable input, not automatic authorization. Run checks in staging with bounded output/time and process-tree termination. Missing tools, zero collected tests, skipped required checks, timeout, or absent acceptance evidence mean **incomplete**. Bind results to source/test/configuration hashes, commands, tool versions and dependency locks; compare hashes before and after checks and after application. Edits invalidate results; worker output cannot certify its own gate. Optional screenshots use an installed browser with external requests and redirects blocked.
+
+The plan names tasks, dependencies, allowed files, acceptance tests, and checks; validate structure and paths locally. Workers receive only their spec, map slice, and necessary excerpts in a fresh official CLI session. Only the gate completes a task. Two failed inexpensive attempts allow one stronger-model attempt, using bounded, redacted failures plus spec/map slices. Failed escalation becomes `needs-review`; missing dependencies/authentication or quota failures stop. Persist attempts before dispatch, including interrupted attempts; resume cannot reset caps or replay uncertain work. Explicit authorization covers planning and worker CLI calls with task/run call limits. Unknown usage stays unknown; dollar caps are advisory unless the provider enforces them.
+
+**Adapter change required in PR 4:** today's `run_headless_task` accepts only benchmark mode and redirects homes. Add an authorized Conductor purpose while retaining benchmark protections; never use `bench=True` as a bypass. Preserve the user's login/configuration and official CLI permissions. Conductor never opens, copies, relocates, or proxies credentials; the official CLI authenticates itself. Unsupported adapters refuse, including configurations whose hooks/MCP cannot meet the network boundary.
+
+**Undo prerequisite:** current manifests cover planned edits and are written after mutation. Before `run`, add a durable write-ahead journal and isolated staging built from permitted current working content, preserving dirty files. Adapters enforce staging-only worker writes through an OS sandbox or verified native restrictions, without relocating authentication; refuse unsupported execution. A staging cwd alone is insufficient. Audit the complete diff, then apply verified creations, modifications, deletions and modes with preimage checks; reject out-of-scope changes, symlinks, drift, and changed gate definitions. Never reset the working tree. State/configuration writes need reversible records; private state/backups use owner-only access. Test crash recovery and conflict-safe restoration.
+
+## Patterns, optional offload, and proof
+
+After verification, offer a concise reusable procedure with applicability, limitations, and evidence; save only after approval. Project patterns stay local; provider skill placement belongs to the adapter and uses backup/undo. Suggest lexical matches before planning without loading the entire library.
+
+Optional offload uses an installed subprocess/stdio backend and the same gate; no automatic model downloads. Ollama HTTP is excluded under the network rule. No telemetry, analytics, update checks, subscription proxies, account sharing, or rate-limit workarounds. Network exceptions are confirmed pinned installs and authorized official AI CLI calls. Enforce offline checks/offload and loopback-only UI checks at the child-process boundary; refuse execution when unavailable. Python socket mocks alone are insufficient.
+
+Ship separate tested commits: foundation, map, verify, plan/run, patterns, optional offload. Each reports normal and network-blocked suite counts and open issues. Tests use fake headless runners, credential canaries, stale-result checks, incremental-index cases, and undo/conflict scenarios. An unavailable network sandbox is reported as unverified, not a pass.
+
+Only after explicit authorization, benchmark the same real multi-page task from identical starting copies: plain top model, tokenstretch, and tsmax. Preserve prompts, versions, raw usage, wall time, test results, and page/feature acceptance evidence. Report total tokens and Claude Code list-price cost separately from subscription charges; unavailable measurements remain unknown. Publish savings only from these runs. Repository creation or push requires separate approval and a scan of all publishable content and history for private identifiers and paths.
