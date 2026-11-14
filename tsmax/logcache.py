@@ -98,7 +98,7 @@ _MEMO_MAX = 8192
 # Tags whose value is a small JSON-safe summary of one log (numbers, booleans, short lists), so
 # it can be kept between runs. Callers of these tags must accept a list where they built a tuple.
 DISK_TAGS = frozenset({"claude-w13", "claude-w14", "claude-w15", "codex-w14", "gemini-w14"})
-DISK_VERSION = 1
+DISK_VERSION = 2
 DISK_MAX_BYTES = 8 << 20
 _DISK: dict | None = None      # {"path": Path, "rows": {"<tag>\t<file>": [sig, value]}, "dirty": bool}
 

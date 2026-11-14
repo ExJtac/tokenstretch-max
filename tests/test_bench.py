@@ -56,18 +56,19 @@ def file_tree(root: Path) -> dict[str, bytes]:
 
 
 # Example last_token_usage, after Codex normalization.
-# uncached = 12050 - 11264 - 0 = 786
+# uncached = 12050 - 11264 - 0 = 786; native output includes reasoning,
+# so normalized visible output excludes it and all five buckets sum once.
 PARENT_TURN1 = normalize_usage(
     input_tokens=12050, cache_read=11264, cache_write=0, output=402, reasoning=128,
-    input_includes_cache=True,
+    input_includes_cache=True, reasoning_in_output=True,
 )
 PARENT_TURN2 = normalize_usage(
     input_tokens=8000, cache_read=4000, cache_write=0, output=370, reasoning=160,
-    input_includes_cache=True,
+    input_includes_cache=True, reasoning_in_output=True,
 )
 FORK_NEW = normalize_usage(
     input_tokens=5000, cache_read=2000, cache_write=0, output=300, reasoning=100,
-    input_includes_cache=True,
+    input_includes_cache=True, reasoning_in_output=True,
 )
 
 
@@ -94,7 +95,7 @@ def test_codex_rollout_normalizes_and_dedupes(tmp_path):
     assert any("jsonl.zst" in n and "cannot decompress" in n for n in notices)
 
     # Parent: two turns (repeat total + matching token_usage_record dropped)
-    parent = [r for r in recs if r.session_id == "session-parent"]
+    parent = [r for r in recs if r.session_id == "thread-parent"]
     assert len(parent) == 2
     assert parent[0].input_tokens == PARENT_TURN1["input_uncached"]
     assert parent[0].cache_read_tokens == PARENT_TURN1["cache_read"]

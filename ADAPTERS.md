@@ -38,6 +38,8 @@ Each adapter implements:
 
 Normalized `UsageRecord` fields: `ts`, `session_id`, `model`, `is_subagent`, `input_tokens` (uncached), `cache_read_tokens`, `cache_write_tokens`, `output_tokens`, `reasoning_tokens`, `cost_usd` (only when the log actually has it), `source`.
 
+The five normalized token categories are disjoint. When native output includes reasoning, subtract that subset from normalized `output_tokens` before recording it separately. Codex response identities use `(thread_id, response_id)` and reconcile native response events with cumulative snapshots in either order; never sum both envelopes as separate usage.
+
 HookPlan items, mapped inside the adapters (not the core): `pre_tool_shell_filter`, `pre_read_gate`, `session_start_note`.
 
 Privacy contract: adapters never fetch, never copy or symlink credential files, never open them (stat only: presence, mode, and permissions via `ctx.exists()` / `ctx.file_stat()`), and never invent savings. Cursor `state.vscdb` is never opened.

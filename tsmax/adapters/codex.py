@@ -615,7 +615,22 @@ class CodexAdapter(Adapter):
 
     def finish_usage_records(self, records: list) -> list:
         from ..usage import drop_forked_replays
-        return drop_forked_replays(records)
+        # Native response IDs are authoritative across files and threads. Equal token
+        # amounts alone do not make two identified responses a fork replay.
+        seen = set()
+        unique = []
+        identified = set()
+        for rec in records:
+            response = rec.extra.get("codex_response_id")
+            if response:
+                key = (rec.session_id, response)
+                if key in seen:
+                    continue
+                seen.add(key)
+                identified.add(rec.session_id)
+            unique.append(rec)
+        legacy = {id(r) for r in drop_forked_replays(unique)}
+        return [r for r in unique if r.session_id in identified or id(r) in legacy]
 
     def watch_sessions(self, ctx: Context, limit: int = 5, max_age_s: float | None = None) -> list[dict] | None:
         """Per-turn usage from the newest rollout logs. Rollouts carry no Read-call paths we rely on."""
@@ -823,6 +838,7 @@ def _codex_rec(adapter_id: str, usage: dict, *, ts=None, model=None, session_id=
         output=int(usage.get("output_tokens") or usage.get("output") or 0),
         reasoning=int(usage.get("reasoning_output_tokens") or usage.get("reasoning_tokens") or 0),
         input_includes_cache=True,
+        reasoning_in_output=True,
     )
     return record_from_normalized(
         adapter_id, "log", norm,
@@ -859,9 +875,78 @@ class CodexRolloutParser:
         self.session_id = _session_id_from_name(path)
         self.model = None
         self.service_tier = None
-        self.prev_total = None
-        self.pending_fp = None
+        self.prev_totals = {}
+        self.pending = None  # (event kind, normalized fingerprint, record, cumulative tuple)
+        self.responses = set()
+        self.native_thread = None
+        self.session_start = 0
+        self.cumulative_counts = []  # anonymous aggregate intervals awaiting native identities
         self.cwd = None  # working directory from session_meta (else the first turn_context)
+
+    def _native_session(self, thread: str | None) -> str:
+        if thread and self.native_thread is None:
+            # session_meta may contain the root session ID in a child rollout.
+            # Repair earlier anonymous token_count records once the native ID arrives.
+            previous = self.session_id
+            self.native_thread = thread
+            self.session_id = thread
+            for rec in self.records[self.session_start:]:
+                if rec.session_id == previous and not rec.extra.get("codex_response_id"):
+                    rec.session_id = thread
+            if previous in self.prev_totals:
+                self.prev_totals[thread] = self.prev_totals.pop(previous)
+        return thread or self.session_id
+
+    def _append_usage(self, kind, rec, cumulative=None):
+        """Pair adjacent opposite usage envelopes, never two native responses.
+
+        Some versions emit token_count first; others emit token_usage_record first.
+        Native cumulative metadata, when present on both envelopes, must also agree.
+        Without that metadata only the immediately preceding usage event is eligible.
+        """
+        from ..usage import fingerprint
+        fp = fingerprint(rec)
+        pending = self.pending
+        if pending is not None:
+            old_kind, old_fp, old_rec, old_total = pending
+            same_total = cumulative is None or old_total is None or cumulative == old_total
+            if (old_kind != kind and old_fp == fp and same_total
+                    and old_rec.session_id == rec.session_id):
+                if kind == "native":
+                    # Keep the native identity and timestamp even when count came first.
+                    old_rec.__dict__.update(rec.__dict__)
+                    old_rec.__dict__.pop("_epoch", None)
+                self.pending = None
+                return
+        self.records.append(rec)
+        self.pending = (kind, fp, rec, cumulative)
+
+    def _replace_aggregate_coverage(self, rec, usage, cumulative):
+        """Replace anonymous cumulative coverage with its identified response.
+
+        A totals-only snapshot can precede several native response envelopes. The
+        native cumulative interval identifies overlap; equal amounts alone cannot.
+        Keep any unmatched remainder of the aggregate instead of discarding it.
+        """
+        start = tuple(end - amount for end, amount in zip(cumulative, usage))
+        fields = ("input_tokens", "cache_read_tokens", "cache_write_tokens",
+                  "output_tokens", "reasoning_tokens")
+        for lower, upper, aggregate in self.cumulative_counts:
+            if aggregate.session_id != rec.session_id:
+                continue
+            if not all(lo <= begin <= end <= hi for lo, begin, end, hi
+                       in zip(lower, start, cumulative, upper)):
+                continue
+            if not all(getattr(aggregate, field) >= getattr(rec, field) for field in fields):
+                continue
+            for field in fields:
+                setattr(aggregate, field, getattr(aggregate, field) - getattr(rec, field))
+            if self.pending is not None and self.pending[2] is aggregate:
+                self.pending = None
+            if not any(getattr(aggregate, field) for field in fields):
+                self.records[:] = [old for old in self.records if old is not aggregate]
+            return True
+        return False
 
     def feed(self, lines: list[bytes]) -> None:
         from ..logcache import loads
@@ -873,7 +958,6 @@ class CodexRolloutParser:
                 self.feed_obj(obj)
 
     def feed_obj(self, obj: dict) -> None:
-        from ..usage import fingerprint
         path, records, adapter_id = self.path, self.records, self.adapter_id
         typ = obj.get("type")
         payload = obj.get("payload") if isinstance(obj.get("payload"), dict) else {}
@@ -881,6 +965,7 @@ class CodexRolloutParser:
 
         # Legacy one-line fixture: {model, usage: {...}} with no rollout envelope.
         if typ is None and (obj.get("usage") or obj.get("token_usage")):
+            self.pending = None
             u = obj.get("usage") or obj.get("token_usage")
             records.append(_codex_rec(
                 adapter_id, u, ts=ts or obj.get("ts"), model=obj.get("model"),
@@ -893,8 +978,13 @@ class CodexRolloutParser:
             )
             if isinstance(payload.get("cwd"), str) and payload["cwd"]:
                 self.cwd = payload["cwd"]
+            self.pending = None
+            self.native_thread = None
+            self.session_start = len(records)
+            self.cumulative_counts = []
             return
         if typ == "turn_context":
+            self.pending = None
             self.model = payload.get("model") or self.model
             if self.cwd is None and isinstance(payload.get("cwd"), str) and payload["cwd"]:
                 self.cwd = payload["cwd"]
@@ -918,28 +1008,67 @@ class CodexRolloutParser:
             total = info.get("total_token_usage") or {}
             last = info.get("last_token_usage")
             total_fp = _usage_tuple(total) if total else None
-            if self.prev_total is not None and total_fp == self.prev_total:
+            session = ev_payload.get("thread_id") or self.session_id
+            previous = self.prev_totals.get(session)
+            if total_fp is not None and total_fp == previous:
+                if (self.pending is not None and self.pending[0] == "native"
+                        and self.pending[2].session_id == session
+                        and self.pending[3] == total_fp):
+                    self.pending = None  # this mirror already completed the envelope pair
                 return  # unchanged totals (rate-limit-only update)
             src = last if last else total
-            rec = _codex_rec(adapter_id, src, ts=ts, model=self.model, session_id=self.session_id,
+            if not src:
+                return
+            if not last and total_fp is not None and previous is not None:
+                # Older logs may carry only cumulative counters. Count the increase,
+                # or the new counters after a reset, never every whole snapshot.
+                values = total_fp
+                if all(new >= old for new, old in zip(total_fp, previous)):
+                    values = tuple(new - old for new, old in zip(total_fp, previous))
+                src = dict(zip(("input_tokens", "cached_input_tokens", "cache_write_input_tokens",
+                                "output_tokens", "reasoning_output_tokens", "total_tokens"), values))
+            rec = _codex_rec(adapter_id, src, ts=ts, model=self.model, session_id=session,
                              extra={"path": str(path), **tier})
-            self.prev_total = total_fp if total_fp is not None else self.prev_total
-            records.append(rec)
-            self.pending_fp = fingerprint(rec)
+            if total_fp is not None:
+                self.prev_totals[session] = total_fp
+                if previous is not None and any(new < old for new, old in zip(total_fp, previous)):
+                    self.cumulative_counts = [entry for entry in self.cumulative_counts
+                                              if entry[2].session_id != session]
+            self._append_usage("count", rec, total_fp)
+            if not last and total_fp is not None and any(old is rec for old in records):
+                lower = previous if previous is not None and all(
+                    new >= old for new, old in zip(total_fp, previous)) else (0,) * len(total_fp)
+                self.cumulative_counts.append((lower, total_fp, rec))
             return
         if typ == "token_usage_record" or ev_type == "token_usage_record":
             u = ev_payload.get("usage") or payload.get("usage") or {}
+            if not u:
+                return
+            session = self._native_session(ev_payload.get("thread_id") or ev_payload.get("session_id"))
+            response = ev_payload.get("response_id")
+            if response:
+                identity = (session, response)
+                if identity in self.responses:
+                    return
+                self.responses.add(identity)
             rec = _codex_rec(
                 adapter_id, u, ts=ts, model=self.model,
-                session_id=ev_payload.get("session_id") or ev_payload.get("thread_id") or self.session_id,
-                task_id=ev_payload.get("response_id") or ev_payload.get("turn_id"),
-                extra={"path": str(path), **tier},
+                session_id=session,
+                task_id=response or ev_payload.get("turn_id"),
+                extra={"path": str(path), **tier, **({"codex_response_id": response} if response else {})},
             )
-            if self.pending_fp is not None and fingerprint(rec) == self.pending_fp:
-                self.pending_fp = None
-                return  # already counted from last_token_usage
-            records.append(rec)
-            self.pending_fp = None
+            cumulative = ev_payload.get("thread_token_usage")
+            total_fp = _usage_tuple(cumulative) if cumulative else None
+            if total_fp is not None:
+                self._replace_aggregate_coverage(rec, _usage_tuple(u), total_fp)
+            self._append_usage("native", rec, total_fp)
+            if total_fp is not None:
+                previous = self.prev_totals.get(session)
+                # Native snapshots advance coverage, but a late older response must
+                # not move the cumulative baseline backwards. Count snapshots handle
+                # explicit counter resets separately.
+                if previous is None or all(new >= old for new, old in zip(total_fp, previous)):
+                    self.prev_totals[session] = total_fp
 
 
 def _run_rollout_parser(path: Path, adapter_id: str) -> tuple["CodexRolloutParser", list[str]]:
