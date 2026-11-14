@@ -505,6 +505,86 @@ class CodexAdapter(Adapter):
             argv = self.apply_model_flag(argv, model)
         return HeadlessRun(argv, cwd)
 
+    def conductor_capabilities(self, ctx: Context):
+        from .base import ConductorCapabilities
+        from ..conductor_runner import local_cli_evidence
+        import shutil
+        binary = ctx.which("codex") or (Path(shutil.which("codex")) if shutil.which("codex") else None)
+        if binary is None:
+            return ConductorCapabilities(self.id, reason="Codex CLI is not installed on PATH.")
+        unsafe = self._conductor_startup_reason(ctx)
+        if unsafe:
+            return ConductorCapabilities(self.id, available=True, executable=str(binary), tiers=self.model_tiers(), reason=unsafe)
+        version, help_text, reason = local_cli_evidence(binary, help_args=("exec", "--help"), probe_env={"DO_NOT_TRACK": "1"})
+        flags = ("--ignore-user-config", "--ephemeral", "--json", "--sandbox", "read-only", "workspace-write")
+        supported = reason is None and version == "codex-cli 0.167.0-alpha.4.1" and all(f in help_text for f in flags)
+        return ConductorCapabilities(self.id, available=True, supported=supported, executable=str(binary), version=version,
+            operations=("plan", "task") if supported else (), tiers=self.model_tiers(), structured_output=supported,
+            native_login=supported, fresh_session=supported, read_only_plan=supported, workspace_task=supported,
+            usage_fields=("input", "output", "cache_read"),
+            limitations=("Model/account availability is unverified until an authorized call.",
+                          "CLI sandbox scopes commands; required approvals are denied rather than bypassed.",
+                          "Project/ancestor .codex directories and known managed startup configuration are refused without reading them.",
+                          "No verified native per-call dollar or turn cap; shared timeout/output caps apply."),
+            reason=reason or (None if supported else "Installed Codex version or safe flags are not locally verified."))
+
+    def _conductor_startup_reason(self, ctx):
+        # --ignore-user-config retains the native authentication directory. It
+        # does not document suppressing project or managed startup settings.
+        # Refuse those paths by lstat only, rather than inspect possible secrets
+        # or assume an empty override removes configured hooks/MCP servers.
+        import os
+        home = Path(ctx.env.get("CODEX_HOME") or os.environ.get("CODEX_HOME") or ctx.home / ".codex")
+        candidates = [p / ".codex" for p in (ctx.root, *ctx.root.parents) if p != ctx.home]
+        candidates += [home / "managed_config.toml", Path('/etc/codex/config.toml'), Path('/etc/codex/requirements.toml')]
+        for path in candidates:
+            try:
+                path.lstat()
+            except FileNotFoundError:
+                continue
+            except OSError:
+                return "Codex startup configuration cannot be safely classified."
+            return "Codex project/ancestor or managed startup configuration is present; conductor execution is unsupported."
+        return None
+
+    def conductor_command(self, ctx, request, model):
+        from .base import ConductorCommand, HeadlessRefused
+        import shutil
+        binary = ctx.which("codex") or Path(shutil.which("codex"))
+        reason = self._conductor_startup_reason(ctx)
+        if reason:
+            raise HeadlessRefused(reason)
+        return ConductorCommand((str(binary), "--no-daemon", "--ask-for-approval", "never", "exec", "--ignore-user-config",
+            "--ephemeral", "--json", "--color", "never", "--sandbox", "read-only" if request.operation == "plan" else "workspace-write",
+            "--model", model, "--cd", str(request.cwd), "--", request.prompt), request.cwd, {"DO_NOT_TRACK": "1"})
+
+    def parse_conductor_output(self, execution, model):
+        from .base import ConductorResponse
+        from ..conductor_protocol import failure_status, nonnegative, json_objects
+        events = json_objects(execution.stdout)
+        completed = [e for e in events if e.get("type") == "turn.completed"]
+        failures = [e for e in events if e.get("type") in {"turn.failed", "error"}]
+        texts = [e.get("item", {}).get("text", "") for e in events if e.get("type") == "item.completed"
+                 and isinstance(e.get("item"), dict) and e["item"].get("type") == "agent_message"]
+        # This fresh single-prompt exec contract expects one completed turn.
+        # Ambiguous repeated receipts are not added or guessed to be incremental.
+        usages = [e.get("usage") for e in completed]
+        usage = None
+        if len(usages) == 1 and isinstance(usages[0], dict):
+            usage = {}
+            for target, source in (("input_tokens", "input_tokens"), ("output_tokens", "output_tokens"),
+                                   ("cache_read_tokens", "cached_input_tokens")):
+                values = [nonnegative(u.get(source)) for u in usages]
+                usage[target] = sum(values) if all(v is not None for v in values) else None
+            usage.update(cache_write_tokens=None, reasoning_tokens=None, estimated_cost_usd=None,
+                         input_includes_cache=True, reasoning_included_in_output=True)
+        models = {e["model"] for e in events if isinstance(e.get("model"), str)}
+        effective = next(iter(models)) if len(models) == 1 else None
+        ok = execution.exit_code == 0 and len(completed) == 1 and not failures
+        reason = None if ok else (json.dumps(failures) if failures else execution.stderr or "Codex returned no completed turn.")
+        return ConductorResponse("completed" if ok else failure_status(reason), "\n".join(t for t in texts if isinstance(t, str)),
+                                 model, effective, usage, execution.exit_code, reason)
+
     def parse_headless_output(self, stdout: str, task_id: str) -> UsageRecord | None:
         from ..usage import normalize_usage, record_from_normalized
         for line in stdout.splitlines()[::-1]:

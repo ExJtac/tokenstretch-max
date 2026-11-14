@@ -1,6 +1,6 @@
 # tokenstretch MAX: Conductor design
 
-**Status: project map and standalone verification gate implemented; provider-neutral planning and execution are next.** The owner deferred Claude-specific benchmark work so the main build proceeds independently of any one provider. The foundation preserves upstream history and licensing while separating the `tsmax` package, command, and state from tokenstretch. Runtime stays Python 3.11+ and standard library only.
+**Status: project map, standalone verification gate and provider-neutral planning/execution implemented.** Reusable patterns and optional installed local models follow. The owner deferred Claude-specific benchmark work so the main build proceeds independently of any one provider. The foundation preserves upstream history and licensing while separating the `tsmax` package, command, and state from tokenstretch. Runtime stays Python 3.11+ and standard library only.
 
 ## Flow and ownership
 
@@ -20,6 +20,7 @@ The core has no preferred AI provider. Select a tool explicitly, negotiate its c
 | `tsmax verify [--run]` | Preview detected checks; explicit `--run` executes them offline and records content-bound results. |
 | `tsmax plan "<goal>"` | Suggest matching patterns, then use the selected tool's top model to write `.tsmax/plan.md`. |
 | `tsmax run` | Work in a separate Git worktree, verify each task, and ask before applying its reviewed changes. |
+| `tsmax run --prepare` | Prepare or inspect staging without model calls; missing dependencies need explicit local setup. |
 | `tsmax skills suggest "<task>"` / `save TASK` | Search local patterns; preview saving a verified approach, with explicit apply. |
 | `tsmax undo [MANIFEST]` | Restore a recorded change or task checkpoint, preserving later edits or refusing on conflict. |
 
@@ -37,7 +38,7 @@ Detect existing test, lint, and typecheck commands without installing dependenci
 
 The plan names tasks, dependencies, allowed files, acceptance tests, and checks; validate structure and paths locally. Workers receive only their spec, map slice, and necessary excerpts in a fresh official CLI session. Only the gate completes a task. Two failed inexpensive attempts allow one stronger-model attempt, using bounded, redacted failures plus spec/map slices. Failed escalation becomes `needs-review`; missing dependencies/authentication or quota failures stop. Persist attempts before dispatch, including interrupted attempts; resume cannot reset caps or replay uncertain work. Explicit authorization covers planning and worker CLI calls with task/run call limits. Unknown usage stays unknown; dollar caps are advisory unless the provider enforces them.
 
-**Adapter change required in PR 4:** today's `run_headless_task` accepts only benchmark mode and redirects homes. Add a separate Conductor purpose while retaining benchmark protections; never use `bench=True` as a bypass. Run the user's own logged-in CLI with its existing permissions. MAX never opens, copies, relocates, or proxies credentials; the CLI authenticates itself. Unsupported adapters refuse.
+**Adapter contract:** `run_headless_task` has a separate explicitly authorized Conductor purpose, retaining legacy benchmark protections; `bench=True` cannot bypass it. Typed capabilities, requests and responses separate provider facts from orchestration. Run the user's own logged-in CLI with its existing login and verified permission modes. MAX never opens, copies, relocates, or proxies credentials; the CLI authenticates itself. Unsupported adapters, versions, environments and required modes refuse before dispatch. Current offline capability profiles are verified on macOS; absent capabilities are not inferred from another provider.
 
 **First execution release:** use a dedicated Git worktree from a recorded commit; leave existing dirty work untouched. A worktree separates proposed edits, **not host or credential access**: native CLI permissions and approvals remain necessary. Show the complete diff and gate results, then ask before applying each task's changes. Check source preimages again and apply with backups/undo; reject out-of-scope changes, symlinks, drift, and changed gate definitions. Never auto-merge or reset the user's tree. If interrupted, stop for inspection; no automatic resume of uncertain work. Full OS containment, write-ahead transactions and automatic crash recovery are later milestones, not blockers for the map or gate. Private state/backups use owner-only access.
 

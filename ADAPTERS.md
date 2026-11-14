@@ -24,7 +24,9 @@ Each adapter implements:
 | `list_mcp_servers(ctx)` | Configured MCP servers. |
 | `read_usage_logs(ctx, since_days=30)` | Local usage records, already normalized. |
 | `install_hooks(ctx, plan, dry_run=True)` | **Planner only** — returns file changes, writes nothing. The installer applies backups and the manifest. |
-| `run_headless_task(ctx, task, opts)` | Refuses unless `opts["bench"]` is true. Runs only through a runner (`FakeHeadlessRunner` in tests). |
+| `run_headless_task(ctx, task, opts)` | Legacy benchmark requires `opts["bench"]`. Conductor requires a distinct `purpose="conductor"` and explicit authorization; mixing the purposes or replacing login HOME is refused. |
+| `conductor_capabilities(ctx)` | Typed availability, verified operations/permissions, native login, fresh-session support, model tiers, limits and accounting fields. Unsupported requirements refuse explicitly. |
+| `conductor_command(ctx, request, model)` / `parse_conductor_output(execution, model)` | Official absolute argv and provider-specific response/usage semantics. The shared bounded runner never uses a shell, selects a provider or substitutes a model. |
 | `undo(ctx, manifest_path)` | Restores one run through the core's `installer.undo_manifest` (default: newest manifest). Raises `FileNotFoundError` if there is none. |
 | `watch_sessions(ctx, limit)` | Per-turn records for `watch` (model, history tokens, output tokens, tool-call count, Read paths only). `None` = not supported yet. Read-only. |
 | `token_tools(ctx)` | Installed token-saving helpers and their telemetry state (`off` / `on` / `not checked`) for the dashboard. Read-only; config reads only, never credentials. |
@@ -39,6 +41,8 @@ Each adapter implements:
 Normalized `UsageRecord` fields: `ts`, `session_id`, `model`, `is_subagent`, `input_tokens` (uncached), `cache_read_tokens`, `cache_write_tokens`, `output_tokens`, `reasoning_tokens`, `cost_usd` (only when the log actually has it), `source`.
 
 The five normalized token categories are disjoint. When native output includes reasoning, subtract that subset from normalized `output_tokens` before recording it separately. Codex response identities use `(thread_id, response_id)` and reconcile native response events with cumulative snapshots in either order; never sum both envelopes as separate usage.
+
+Conductor's typed response separately preserves unknown usage fields as `None`, with explicit cache/reasoning subset semantics. Requested models and reported effective models are distinct; an unknown effective model is not inferred from the request. A completed provider response is not a completed task: only independent verification and reviewed application can finish a task. Tests use `FakeConductorRunner`; real dispatch refuses under pytest. Exact provider flags, environment opt-outs, startup-path checks and parsing remain in adapters. The initial local capability probe is macOS-only and checks tested CLI versions with external networking denied; it makes no inference or authentication request.
 
 HookPlan items, mapped inside the adapters (not the core): `pre_tool_shell_filter`, `pre_read_gate`, `session_start_note`.
 

@@ -566,6 +566,15 @@ class CopilotCliAdapter(DoctorOnlyAdapter):
         return ["copilot", "-p", prompt, "--output-format", "json",
                 "--disable-client-telemetry", "--sync-session=off"]
 
+    def conductor_capabilities(self, ctx: Context):
+        from .base import ConductorCapabilities
+        import shutil
+        binary = ctx.which("copilot") or (Path(shutil.which("copilot")) if shutil.which("copilot") else None)
+        return ConductorCapabilities(self.id, available=binary is not None, executable=str(binary) if binary else None,
+            tiers=self.model_tiers(), reason=("Copilot CLI is not installed on PATH." if binary is None else
+                "Copilot conductor permission modes are not verified from local official help; execution is unsupported."),
+            limitations=("Doctor and legacy isolated benchmark support do not imply safe conductor execution.",))
+
     def headless_run(self, prompt: str, cwd: Path, model: str | None = None) -> HeadlessRun | None:
         argv = self.official_command(prompt)
         if model:
@@ -575,6 +584,8 @@ class CopilotCliAdapter(DoctorOnlyAdapter):
     def run_headless_task(self, ctx: Context, task: dict | None = None, opts: dict | None = None) -> dict:
         """Bench only: sandbox COPILOT_HOME, a fixed --session-id, and a local OTel file (no content capture)."""
         opts = opts or {}
+        if opts.get("purpose") is not None:
+            return Adapter.run_headless_task(self, ctx, task, opts)
         if not opts.get("bench"):
             raise HeadlessRefused("run_headless_task refused without --bench")
         from ..bench import default_headless_runner

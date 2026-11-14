@@ -763,6 +763,8 @@ def main(argv=None) -> int:
     add_map_parser(sub)
     from .verify_cli import add_parser as add_verify_parser
     add_verify_parser(sub)
+    from .conductor_cli import add_parser as add_conductor_parser
+    add_conductor_parser(sub)
 
     d = sub.add_parser("doctor", help="read-only local audit (no network)")
     _add_context_args(d)
@@ -1114,6 +1116,9 @@ def main(argv=None) -> int:
     # ---- end pace parser ----
 
     a = p.parse_args(argv)
+    if a.cmd in {"plan", "run"}:
+        from .conductor_cli import run as run_conductor_cli
+        return run_conductor_cli(a)
     if a.cmd == "verify":
         from .verify_cli import run as run_verify
         return run_verify(a)

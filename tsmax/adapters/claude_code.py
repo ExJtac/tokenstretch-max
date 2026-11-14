@@ -1525,6 +1525,90 @@ class ClaudeCodeAdapter(Adapter):
             argv = self.apply_model_flag(argv, model)
         return HeadlessRun(argv, cwd)
 
+    def conductor_capabilities(self, ctx: Context):
+        from .base import ConductorCapabilities
+        from ..conductor_runner import local_cli_evidence
+        import shutil
+        binary = ctx.which("claude") or (Path(shutil.which("claude")) if shutil.which("claude") else None)
+        if binary is None:
+            return ConductorCapabilities(self.id, reason="Claude CLI is not installed on PATH.")
+        version, help_text, reason = local_cli_evidence(binary, probe_env=self.conductor_environment())
+        flags = ("--restricted", "--safe-mode", "--tools", "--strict-mcp-config", "--permission-prompts",
+                 "--no-session-persistence", "--output-format")
+        # --max-turns is present in this verified binary's local option schema,
+        # but hidden from its public help; do not require help to list it.
+        supported = reason is None and version == "2.1.323 (Claude Code)" and all(f in help_text for f in flags)
+        return ConductorCapabilities(self.id, available=True, supported=supported, executable=str(binary), version=version,
+            operations=("plan", "task") if supported else (), tiers=self.model_tiers(), structured_output=supported,
+            native_login=supported, fresh_session=supported, read_only_plan=supported, workspace_task=supported,
+            native_limits=("turns",), usage_fields=("input", "output", "cache_read", "cache_write", "reasoning_subset", "estimated_cost"),
+            limitations=("Model availability requires the user's existing account; it is not probed.",
+                          "Restricted file tools only; independent verification runs tests afterward.",
+                          "Managed policy still applies; a denied edit is not bypassed."),
+            reason=reason or (None if supported else "Installed Claude version or required safe flags are not locally verified."))
+
+    def conductor_command(self, ctx, request, model):
+        from .base import ConductorCommand
+        import shutil
+        binary = ctx.which("claude") or Path(shutil.which("claude"))
+        tools = "Read,Glob,Grep" if request.operation == "plan" else "Read,Glob,Grep,Edit,Write"
+        argv = (str(binary), "-p", "--model", model, "--restricted", "--safe-mode",
+                "--tools", tools, "--allowedTools", tools, "--strict-mcp-config", "--mcp-config", '{"mcpServers":{}}',
+                "--permission-mode", "plan" if request.operation == "plan" else "acceptEdits",
+                "--permission-prompts", "none", "--no-chrome", "--disable-slash-commands",
+                "--settings", '{"disableAllHooks":true}', "--no-session-persistence", "--output-format", "json",
+                "--max-turns", "25", "--", request.prompt)
+        return ConductorCommand(argv, request.cwd, self.conductor_environment())
+
+    def conductor_environment(self):
+        return {"CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC": "1", "DISABLE_TELEMETRY": "1",
+                "DISABLE_ERROR_REPORTING": "1", "DISABLE_AUTOUPDATER": "1", "DO_NOT_TRACK": "1"}
+
+    def conductor_model_matches(self, requested, effective):
+        if requested in {"haiku", "sonnet", "opus"}:
+            return bool(re.fullmatch(r"claude-" + requested + r"-\d[\w.-]*", effective))
+        return requested == effective
+
+    def parse_conductor_output(self, execution, model):
+        from .base import ConductorResponse
+        from ..conductor_protocol import failure_status, nonnegative, json_objects
+        objects = json_objects(execution.stdout)
+        results = [o for o in objects if o.get("type") == "result"]
+        if len(results) != 1:
+            return ConductorResponse(failure_status(execution.stderr), requested_model=model, exit_code=execution.exit_code,
+                                     reason=execution.stderr or "Claude returned no unique final result.")
+        result = results[0]
+        usage = result.get("modelUsage")
+        effective = next(iter(usage)) if isinstance(usage, dict) and len(usage) == 1 else None
+        malformed = usage is not None and not isinstance(usage, dict)
+        records = list(usage.values()) if isinstance(usage, dict) else []
+        malformed = malformed or any(not isinstance(record, dict) for record in records)
+        fields = {"input_tokens": "inputTokens", "output_tokens": "outputTokens",
+                  "cache_read_tokens": "cacheReadInputTokens", "cache_write_tokens": "cacheCreationInputTokens",
+                  "reasoning_tokens": "thinkingTokens"}
+        tokens = {"input_includes_cache": False, "reasoning_included_in_output": True,
+                  "per_model": usage,
+                  "estimated_cost_usd": nonnegative(result.get("total_cost_usd"))}
+        for target, source in fields.items():
+            values = [record.get(source) if isinstance(record, dict) else None for record in records]
+            invalid = any(value is not None and
+                          (not isinstance(value, int) or isinstance(value, bool) or value < 0) for value in values)
+            malformed = malformed or invalid
+            tokens[target] = sum(values) if values and not invalid and all(value is not None for value in values) else None
+        if result.get("total_cost_usd") is not None and tokens["estimated_cost_usd"] is None:
+            malformed = True
+        text = result.get("result") if isinstance(result.get("result"), str) else ""
+        completed = execution.exit_code == 0 and result.get("subtype") == "success" and result.get("is_error") is False
+        reason = None if completed else str(result.get("errors") or execution.stderr or result.get("subtype") or "incomplete")
+        if malformed:
+            completed = False
+            reason = "Malformed Claude usage receipt; reported per-model data retained for review."
+        elif isinstance(usage, dict) and len(usage) > 1:
+            completed = False
+            reason = "Ambiguous multi-model Claude receipt; model substitution cannot be excluded."
+        return ConductorResponse("completed" if completed else failure_status(reason), text, model, effective, tokens,
+                                 execution.exit_code, reason)
+
     def parse_headless_output(self, stdout: str, task_id: str) -> UsageRecord | None:
         try:
             obj = json.loads(stdout.strip().splitlines()[-1])

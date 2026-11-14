@@ -706,6 +706,8 @@ class GeminiCliAdapter(DoctorOnlyAdapter):
     def run_headless_task(self, ctx: Context, task: dict | None = None, opts: dict | None = None) -> dict:
         """Bench only. Turns usage statistics off in the sandbox HOME's settings before the run."""
         opts = opts or {}
+        if opts.get("purpose") is not None:
+            return Adapter.run_headless_task(self, ctx, task, opts)
         if not opts.get("bench"):
             raise HeadlessRefused("run_headless_task refused without --bench")
         home = Path(opts.get("home") or ctx.home)
@@ -724,6 +726,15 @@ class GeminiCliAdapter(DoctorOnlyAdapter):
             settings.parent.mkdir(parents=True, exist_ok=True)
             settings.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8")
         return Adapter.run_headless_task(self, ctx, task, opts)
+
+    def conductor_capabilities(self, ctx: Context):
+        from .base import ConductorCapabilities
+        import shutil
+        binary = ctx.which("gemini") or (Path(shutil.which("gemini")) if shutil.which("gemini") else None)
+        return ConductorCapabilities(self.id, available=binary is not None, executable=str(binary) if binary else None,
+            tiers=self.model_tiers(), reason=("Gemini CLI is not installed on PATH." if binary is None else
+                "Gemini conductor permission modes are not verified from local official help; execution is unsupported."),
+            limitations=("Doctor and legacy isolated benchmark support do not imply safe conductor execution.",))
 
     def parse_headless_output(self, stdout: str, task_id: str) -> UsageRecord | None:
         """`--output-format stream-json`: the final {"type":"result","stats":{...}} event (docs/cli/headless.md)."""

@@ -2,7 +2,7 @@
 
 A separate, local-first offshoot of [tokenstretch](https://github.com/ExJtac/tokenstretch), with an isolated Python package, command, installation, and state directory. MIT licensed; see [LICENSE](LICENSE) and [NOTICE](NOTICE).
 
-**Not released yet.** Based on tokenstretch 0.9.6, MAX now adds a local project map and a standalone verification gate. Planning and task execution are next. MAX reports version `0.1.0.dev0`, identifying an unreleased development build. The GitHub repository and release installer are not published yet.
+**Not released yet.** Based on tokenstretch 0.9.6, MAX adds a local project map, verification gate and provider-neutral planner/runner. MAX reports version `0.1.0.dev0`, identifying an unreleased development build. The GitHub repository and release installer are not published yet.
 
 ## What works today
 
@@ -101,9 +101,33 @@ Only passed required checks with unchanged source, test, configuration and lock 
 
 Private records live in `.tsmax/verify/`, with backups and undo. Exit codes are `0` for preview/pass, `1` for failure and `2` for incomplete; `--json` returns structured evidence. Optional UI screenshots are not implemented yet.
 
-## Conductor plan
+## Plan and run small tasks
 
-Next comes provider-neutral planning and execution. Each AI tool supplies its own adapter; the core has no Claude or other provider dependency. The first runner will use a separate Git worktree and ask before applying each task's verified changes; a worktree is not a sandbox. Later work adds reusable approaches and optional models already installed locally. See the revised [Conductor design](docs/CONDUCTOR.md) and [decisions](docs/DECISIONS.md). `tsmax plan` and `tsmax run` are not implemented yet.
+Choose an AI tool explicitly. Its adapter supplies model tiers, official CLI commands, permissions and usage parsing; the shared planner and gate do not prefer a provider.
+
+```bash
+tsmax plan "add keyboard navigation" --tool codex       # preview only
+tsmax plan "add keyboard navigation" --tool codex --run # authorize one planning call
+tsmax run                                             # review saved tasks and checks
+tsmax run --prepare                                   # prepare/inspect worktree; no model calls
+tsmax run --execute --max-calls 6                      # authorize at most six worker CLI sessions
+# After reviewing the complete diff and passing checks:
+tsmax run --apply T1 --review EXACT_TOKEN_FROM_REVIEW
+```
+
+The selected official CLI uses its existing login. Planning writes a validated `.tsmax/plan.json` and readable `.tsmax/plan.md`. Each task names its dependencies, allowed files, acceptance criteria and exact check commands. Execution uses a separate temporary Git worktree from a recorded commit. Workers get a fresh session with their task, current map results and bounded source excerpts. Two unsuccessful mid-tier attempts allow one top-tier attempt with the failure/spec/map context. All attempts count toward the persisted call limit; changing flags cannot reset it. This limit counts CLI sessions, each of which may contain multiple model turns. It is not an API-request, token or dollar cap; available native limits are adapter-specific.
+
+Prepare dependencies explicitly in the printed worktree before execution. MAX does not install, copy or share dependencies automatically. Declared Node dependencies without a local `node_modules` directory stop before a worker call. The worktree preserves eligible source, check configuration, locks, SVGs, and bounded static images/fonts. Binary assets are read-only task inputs; their hashes participate in verification. Other excluded files are not materialized, so this is a filtered worktree. Git's own status may show omitted files as deleted; MAX's review uses the materialized baseline. Standard relative executable links contained inside staged `node_modules` are checked as metadata. Linked dependency directories, external links, source symlinks and hard links are refused.
+
+A passing staging gate produces a review token for the complete proposed diff. Applying requires that exact token, fresh checks and unchanged source preimages. MAX then reruns the approved checks in the original project; only a fresh pass marks the task done and releases dependent tasks. A failed or incomplete check preserves the changes and blocks further work. The apply result names the source-change manifest for `tsmax undo MANIFEST`; later state records have their own manifests.
+
+Unrelated dirty work stays in place. Relevant dirty inputs, changed gate definitions, out-of-scope edits, unsafe files and oversized reviews are refused. Source edits preserve reviewed regular permissions, and deletions are backed up and undoable. Backups and an undo manifest are prepared before source edits so a partial application can be inspected and undone. There is no automatic rollback or crash recovery. Interrupted/uncertain calls stop for inspection and are never replayed automatically. Worktrees separate files; they do not contain host or credential access. Use trusted synchronous checks.
+
+Build outputs are never applied back: `__pycache__`, `.pytest_cache`, `.ruff_cache`, `.mypy_cache`, `dist`, `build`, `coverage`, `.next`, `target`, `.eslintcache`, and `*.tsbuildinfo`. These exceptions do not permit dependency edits. Inspection remains bounded to 100,000 filesystem entries and depth 64; oversized projects stop explicitly. Eligible source is limited to 1 MB per file, supported static assets to 8 MB per file, and included content to 64 MB total. A task producing no source change requires review.
+
+Current execution profiles are locally verified for specific Claude Code and Codex CLI versions on macOS. Gemini CLI and Copilot CLI retain their adapters but do not yet have a verified Conductor execution profile. Missing tools, unsupported versions/platforms or unsafe startup configuration refuse before a model call. New adapters implement the same capability/request/response contract; tests exercise arbitrary provider IDs. No live model execution has been measured yet, and account/model availability remains unknown until an explicitly authorized call. Runtime stays Python standard library only.
+
+Reusable approaches and optional installed local models are next. See the [Conductor design](docs/CONDUCTOR.md) and [decisions](docs/DECISIONS.md).
 
 ## Privacy and boundaries
 

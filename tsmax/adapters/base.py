@@ -96,6 +96,63 @@ class HeadlessRefused(PermissionError):
     """Raised when run_headless_task is called without an explicit --bench flag."""
 
 
+@dataclass(frozen=True)
+class ConductorRequest:
+    operation: str
+    prompt: str
+    tier: str
+    cwd: Path
+    timeout_s: int = 900
+    authorized: bool = False
+    model_override: str | None = None
+
+
+@dataclass(frozen=True)
+class ConductorCapabilities:
+    provider: str
+    available: bool = False
+    supported: bool = False
+    executable: str | None = None
+    version: str | None = None
+    operations: tuple[str, ...] = ()
+    tiers: dict[str, str] = field(default_factory=dict)
+    structured_output: bool = False
+    native_login: bool = False
+    fresh_session: bool = False
+    read_only_plan: bool = False
+    workspace_task: bool = False
+    native_limits: tuple[str, ...] = ()
+    usage_fields: tuple[str, ...] = ()
+    limitations: tuple[str, ...] = ()
+    reason: str | None = None
+
+
+@dataclass
+class ConductorResponse:
+    status: str
+    text: str = ""
+    requested_model: str | None = None
+    effective_model: str | None = None
+    usage: dict | None = None
+    exit_code: int | None = None
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class ConductorCommand:
+    argv: tuple[str, ...]
+    cwd: Path
+    env: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class ConductorExecution:
+    exit_code: int | None
+    stdout: str = ""
+    stderr: str = ""
+    stop_reason: str | None = None
+
+
 RULES_START = f"<!-- {PRODUCT_NAME}:credit-rules start -->"
 RULES_END = f"<!-- {PRODUCT_NAME}:credit-rules end -->"
 
@@ -255,6 +312,18 @@ class Adapter:
     def run_headless_task(self, ctx: Context, task: dict | None = None, opts: dict | None = None) -> dict:
         """Refuses unless opts['bench'] is true. Never runs against the real HOME/repo."""
         opts = opts or {}
+        if opts.get("purpose") == "conductor":
+            if opts.get("bench") or "home" in opts:
+                raise HeadlessRefused("conductor cannot bypass authorization with bench or replace login HOME")
+            from dataclasses import asdict
+            payload = task or {}
+            request = ConductorRequest(operation=payload.get("operation", "task"), prompt=payload.get("prompt", ""),
+                tier=payload.get("tier", "mid"), cwd=Path(opts.get("sandbox_dir") or ctx.root),
+                timeout_s=opts.get("timeout_s", 900), authorized=opts.get("authorized") is True,
+                model_override=payload.get("model"))
+            return asdict(self.run_conductor(ctx, request, runner=opts.get("runner")))
+        if opts.get("purpose") is not None:
+            raise HeadlessRefused("unsupported headless purpose")
         if not opts.get("bench"):
             raise HeadlessRefused("run_headless_task refused without --bench")
         from ..bench import default_headless_runner
@@ -275,6 +344,22 @@ class Adapter:
             rec = self.parse_headless_output(ran.stdout or "", task.get("id") or task.get("task_id") or "task")
             usage = [rec] if rec else []
         return {"exitCode": ran.exit_code, "usage": usage, "rawOutput": ran.stdout or "", "stderr": ran.stderr or ""}
+
+    def conductor_capabilities(self, ctx: Context) -> ConductorCapabilities:
+        return ConductorCapabilities(provider=self.id, reason="No verified conductor profile for this adapter.")
+
+    def conductor_command(self, ctx: Context, request: ConductorRequest, model: str) -> ConductorCommand:
+        raise HeadlessRefused("adapter does not implement an official conductor command")
+
+    def parse_conductor_output(self, execution: ConductorExecution, model: str) -> ConductorResponse:
+        return ConductorResponse("unsupported", requested_model=model, reason="No conductor output parser.")
+
+    def conductor_model_matches(self, requested: str, effective: str) -> bool:
+        return requested == effective
+
+    def run_conductor(self, ctx: Context, request: ConductorRequest, *, runner=None) -> ConductorResponse:
+        from ..conductor_runner import dispatch
+        return dispatch(self, ctx, request, runner=runner)
 
     def undo(self, ctx: Context, manifest_path: str | None = None) -> dict:
         """Restore one install/setup run from its manifest (default: the newest one) via the core.

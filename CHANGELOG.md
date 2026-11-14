@@ -9,6 +9,8 @@
 - Add read-only stdio MCP and a backed-up Claude Code project integration, plus secure map-state writes and undo.
 - Revise the Conductor plan around independent map/gate releases, reviewed worktree changes, later local Ollama support and a map-only benchmark.
 - Add preview-first `verify` with explicit command authorization, mandatory external-network isolation, bounded synchronous checks, content fingerprints, and private undoable results.
+- Add provider-neutral `plan`/`run`, typed official-CLI capabilities, bounded fresh tasks, persisted attempt caps, reviewed worktree changes and checks after application.
+- Preserve source permissions and support undoable deletions; prepare secure backups and the complete undo manifest before source mutations.
 
 The dated releases below are inherited upstream history, not MAX releases.
 
