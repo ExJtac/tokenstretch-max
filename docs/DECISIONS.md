@@ -23,3 +23,7 @@ Before building plan/run, compare the same task/model with and without the map. 
 ## 2026-11-14 — Keep Git outside the first map reader
 
 Git can open paths from repository configuration before MAX can apply its own exclusions. The initial map therefore uses guarded directory traversal and file hashes, with bounded local ignore handling. Defer Git-diff hints and native Git exclusion semantics until they can satisfy the same no-credential-read contract. Unsupported ignore syntax must not silently include files that the user intended to exclude.
+
+## 2026-11-14 — Benchmark a private medium task with one bounded approval
+
+The owner accepted the paired map-only methodology, adding a real web application at a fixed revision, a meaningful task expected to touch 5–15 files, and an agreed budget before execution. Keep all project-specific evidence private. An independent reviewer reviews the complete per-trial measurements and returns them to the owner before any README claim. Three Sonnet pairs are the proposed starting scope; neither execution funding nor publication is approved by the methodology review alone. CLI cost thresholds must be described accurately when they can overshoot during a turn.
