@@ -395,6 +395,84 @@ def _put(path: Path, data: bytes, private: bool) -> None:
     _write_private(path, data) if private else path.write_bytes(data)
 
 
+def _apply_secure_changes(ctx, changes, stamp, profile, extra_manifest):
+    """Prepare backups and an undo manifest before changing reviewed files.
+
+    This is not a transaction or automatic crash recovery. A partial application
+    retains its manifest so undo can restore written files and skip untouched ones.
+    Explicit source modes opt in to permission-aware undo; private state keeps its
+    existing 0600 behavior. No Git commands or credential reads are involved.
+    """
+    from . import secure_files as sf
+    if not isinstance(stamp, str) or not re.fullmatch(r"[A-Za-z0-9_.:+-]{1,180}", stamp) or stamp in {".", ".."}:
+        raise ValueError("secure change stamp must be a single bounded name")
+    backup_dir = kit_root(ctx) / "backups" / stamp
+    manifest_path = kit_root(ctx) / "manifests" / (stamp + ".json")
+    if sf.read_bytes(manifest_path) is not None:
+        raise ValueError("a manifest already exists for this change stamp")
+    pending, records, dirs_created, seen = [], [], [], set()
+    for ch in changes:
+        path = Path(os.path.abspath(ch["path"]))
+        if path in seen or not _writable(path, ctx):
+            raise PermissionError("secure changes require unique paths inside the home/project tree")
+        seen.add(path)
+        before = sf.read_bytes(path)
+        before_hash = sha256_bytes(before) if before is not None else None
+        before_mode = sf.file_mode(path)
+        if "preimage" not in ch or ch["preimage"] != before_hash:
+            raise ValueError("file changed since the change was planned")
+        if "preimage_mode" in ch and ch["preimage_mode"] != before_mode:
+            raise ValueError("file permissions changed since the change was planned")
+        deleting = ch.get("kind") == "delete"
+        if deleting and before is None:
+            raise ValueError("cannot delete a missing file")
+        mode_aware = deleting or "mode" in ch
+        if mode_aware and before_mode is not None:
+            sf.regular_mode(before_mode)
+        mode = None if deleting else sf.regular_mode(ch.get("mode", 0o600))
+        content = ch.get("content") or b""
+        content = content.encode("utf-8") if isinstance(content, str) else content
+        if not isinstance(content, bytes) or len(content) > sf.MAX_BYTES:
+            raise ValueError("secure change content must be bounded bytes or text")
+        if deleting and content:
+            raise ValueError("a deletion cannot contain replacement content")
+        backup_rel = _rel_backup_path(path, ctx.home, ctx.root) if before is not None else None
+        after_rel = None
+        if not deleting and path.suffix == ".json" and (ch.get("private") or len(content) <= AFTER_COPY_MAX):
+            after_rel = str(Path("after") / _rel_backup_path(path, ctx.home, ctx.root))
+        if not deleting:
+            parent = path.parent
+            created = []
+            while not parent.exists() and parent != parent.parent:
+                created.append(str(parent))
+                parent = parent.parent
+            dirs_created.extend(p for p in reversed(created) if p not in dirs_created)
+        rec = {"path": str(path), "action": "deleted" if deleting else "modified" if before is not None else "created",
+               "sha256_before": before_hash, "sha256_after": None if deleting else sha256_bytes(content),
+               "backup": backup_rel, "after": after_rel, "reason": ch.get("reason") or "", "secure": True,
+               **({"private": True} if ch.get("private") else {}),
+               **({"mode_before": before_mode, "mode_after": mode} if mode_aware else {})}
+        records.append(rec)
+        pending.append((path, before, before_mode, content, mode, deleting, rec))
+    # All preimages are checked before any project file is touched.
+    sf.mkdir_parents(backup_dir)
+    for path, before, before_mode, content, mode, deleting, rec in pending:
+        if rec["backup"]:
+            sf.write_bytes(backup_dir / rec["backup"], before, expected_hash=None)
+        if rec["after"]:
+            sf.write_bytes(backup_dir / rec["after"], content, expected_hash=None)
+    manifest = {**(extra_manifest or {}), "product": PRODUCT_NAME, "version": VERSION,
+                "profile": profile, "secure": True, "created_at": stamp,
+                "backup_dir": str(backup_dir), "files": records, "dirs_created": dirs_created}
+    sf.write_bytes(manifest_path, (json.dumps(manifest, indent=2) + "\n").encode(), expected_hash=None)
+    for path, before, before_mode, content, mode, deleting, rec in pending:
+        if deleting:
+            sf.unlink(path, expected_hash=rec["sha256_before"], expected_mode=before_mode)
+        else:
+            sf.write_bytes(path, content, mode=mode, expected_hash=rec["sha256_before"], expected_mode=before_mode)
+    return {"manifest_path": str(manifest_path), "backup_dir": str(backup_dir), "manifest": manifest}
+
+
 def apply_changes(ctx: Context, changes: list[dict[str, str]], stamp: str | None = None, *, profile: str = "clean", extra_manifest: dict | None = None) -> dict[str, Any]:
     """Write planned changes, backing up every touched existing file first.
 
@@ -404,6 +482,8 @@ def apply_changes(ctx: Context, changes: list[dict[str, str]], stamp: str | None
     secure = any(ch.get("secure") for ch in changes)
     if secure and not all(ch.get("secure") for ch in changes):
         raise ValueError("secure changes cannot be mixed with legacy changes")
+    if secure:
+        return _apply_secure_changes(ctx, changes, stamp or _now_stamp(), profile, extra_manifest)
     from . import secure_files
     def put(path, data, private):
         secure_files.write_bytes(path, data) if secure else _put(path, data, private)
@@ -531,13 +611,13 @@ def _key_level_undo(rec: dict, backup_dir: Path) -> dict | None:
 class DriftError(RuntimeError):
     """A file changed after the install; undo refused without --force."""
 
-    def __init__(self, path: str, expected: str | None, actual: str | None):
+    def __init__(self, path: str, expected: str | None, actual: str | None, detail: str | None = None):
         self.path = path
         self.expected = expected
         self.actual = actual
         super().__init__(
             f"refusing to undo {path}: it changed since the install "
-            f"(expected sha256 {expected}, found {actual}). Re-run with --force to override."
+            f"({detail or f'expected sha256 {expected}, found {actual}'}). Re-run with --force to override."
         )
 
 
@@ -561,13 +641,13 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
         raise OSError("secure map undo is unavailable on this platform")
     def read(path):
         return secure_files.read_bytes(path) if secure else path.read_bytes()
-    def put(path, content, private, expected):
+    def put(path, content, private, expected, mode=0o600, expected_mode=None):
         if secure:
-            secure_files.write_bytes(path, content, expected_hash=expected)
+            secure_files.write_bytes(path, content, mode=mode, expected_hash=expected, expected_mode=expected_mode)
         else:
             _put(path, content, private)
-    def remove(path, expected):
-        secure_files.unlink(path, expected_hash=expected) if secure else path.unlink()
+    def remove(path, expected, expected_mode=None):
+        secure_files.unlink(path, expected_hash=expected, expected_mode=expected_mode) if secure else path.unlink()
     backup_dir = Path(data["backup_dir"])
     restored: list[str] = []
     deleted: list[str] = []
@@ -583,6 +663,14 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
             return sha256_bytes(raw) if raw is not None else None
         return sha256_file(path)
 
+    def current_mode(path):
+        return secure_files.file_mode(path) if secure else None
+
+    def already_restored(rec, actual, mode):
+        if rec.get("action") == "created":
+            return actual is None
+        return actual == rec.get("sha256_before") and ("mode_before" not in rec or mode == rec["mode_before"])
+
     # Process files; refuse the whole undo if any drifted and not --force
     if not force:
         for rec in data.get("files") or []:
@@ -591,10 +679,12 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
             expected = rec.get("sha256_after")
             before = rec.get("sha256_before")
             action = rec.get("action")
+            mode = current_mode(path)
             # Already undone: created file gone, or modified file back to before.
-            if action == "created" and actual is None:
+            if already_restored(rec, actual, mode):
                 continue
-            if action == "modified" and actual == before:
+            if "mode_after" in rec and mode != rec["mode_after"]:
+                refused.append(rec["path"])
                 continue
             if actual == expected:
                 continue
@@ -606,7 +696,9 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
             refused.append(rec["path"])
         if refused:
             rec = next(r for r in data["files"] if r["path"] == refused[0])
-            raise DriftError(refused[0], rec.get("sha256_after"), current_hash(Path(refused[0])))
+            mode_changed = "mode_after" in rec and current_mode(Path(refused[0])) != rec["mode_after"]
+            raise DriftError(refused[0], rec.get("sha256_after"), current_hash(Path(refused[0])),
+                             "file permissions changed" if mode_changed else None)
 
     for rec in data.get("files") or []:
         path = Path(rec["path"])
@@ -614,6 +706,10 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
         expected = rec.get("sha256_after")
         before = rec.get("sha256_before")
         action = rec.get("action")
+        mode = current_mode(path)
+        restored_mode = rec.get("mode_before") if "mode_before" in rec else 0o600
+        if not force and not already_restored(rec, actual, mode) and "mode_after" in rec and mode != rec["mode_after"]:
+            raise DriftError(str(path), expected, actual, "file permissions changed")
         if str(path) in by_key:
             if secure and actual != by_key_hash[str(path)]:
                 raise DriftError(str(path), by_key_hash[str(path)], actual)
@@ -621,12 +717,13 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
             text = (json.dumps(merged, indent=2) + "\n").encode("utf-8")
             try:
                 if action == "created" and not merged:
-                    remove(path, actual)    # setup created it and nothing of the user's is in it
+                    remove(path, actual, mode)    # setup created it and nothing of the user's is in it
                     deleted.append(str(path))
                 elif text == read(path):
                     skipped.append(str(path))   # nothing of ours left in it
                 else:
-                    put(path, text, bool(rec.get("private")), actual)
+                    partial_mode = restored_mode if restored_mode is not None else mode
+                    put(path, text, bool(rec.get("private")), actual, partial_mode if partial_mode is not None else 0o600, mode)
                     partial.append(str(path))
             except OSError as exc:
                 raise RuntimeError(f"could not update {path}: {exc}") from exc
@@ -638,12 +735,12 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
             if not force and actual != expected:
                 raise DriftError(str(path), expected, actual)
             try:
-                remove(path, actual)
+                remove(path, actual, mode)
                 deleted.append(str(path))
             except OSError as exc:
                 raise RuntimeError(f"could not delete {path}: {exc}") from exc
-        else:  # modified
-            if actual == before:
+        else:  # modified or deleted
+            if already_restored(rec, actual, mode):
                 skipped.append(str(path))
                 continue
             if not force and actual != expected:
@@ -656,7 +753,7 @@ def undo_manifest(manifest_path: Path, *, force: bool = False) -> dict[str, Any]
                 content = read(bpath)
                 if content is None or (secure and sha256_bytes(content) != before):
                     raise OSError("backup is missing or changed")
-                put(path, content, bool(rec.get("private")), actual)
+                put(path, content, bool(rec.get("private")), actual, restored_mode if restored_mode is not None else 0o600, mode)
             except OSError as exc:
                 raise RuntimeError(f"could not restore {path} from {bpath}: {exc}") from exc
             restored.append(str(path))

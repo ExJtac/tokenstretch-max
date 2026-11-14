@@ -71,22 +71,49 @@ def mkdir_parents(path: Path) -> None:
         pass
 
 
-def _check(fd, name, expected_hash):
+def file_mode(path: Path) -> int | None:
+    try:
+        with _parent(path) as (fd, name):
+            info = os.stat(name, dir_fd=fd, follow_symlinks=False)
+            if not stat.S_ISREG(info.st_mode) or info.st_nlink != 1:
+                raise OSError("file permissions require a regular file without links")
+            return stat.S_IMODE(info.st_mode)
+    except FileNotFoundError:
+        return None
+
+
+def regular_mode(value) -> int:
+    mode = int(value, 8) if isinstance(value, str) else value
+    if type(mode) is not int or mode < 0 or mode > 0o777 or mode & 0o022 or not mode & 0o400:
+        raise ValueError("file mode must permit owner reads, with no special bits or group/world write access")
+    return mode
+
+
+def _check(fd, name, expected_hash, expected_mode=_UNSET):
     if expected_hash is not _UNSET:
         current = _read_at(fd, name, MAX_BYTES)
         actual = hashlib.sha256(current).hexdigest() if current is not None else None
         if actual != expected_hash:
             raise OSError("file changed since the reviewed preimage")
+    if expected_mode is not _UNSET:
+        try:
+            actual_mode = stat.S_IMODE(os.stat(name, dir_fd=fd, follow_symlinks=False).st_mode)
+        except FileNotFoundError:
+            actual_mode = None
+        if actual_mode != expected_mode:
+            raise OSError("file permissions changed since the reviewed preimage")
 
 
-def write_bytes(path: Path, data: bytes, mode: int = 0o600, *, expected_hash=_UNSET) -> None:
+def write_bytes(path: Path, data: bytes, mode: int = 0o600, *, expected_hash=_UNSET, expected_mode=_UNSET) -> None:
+    mode = regular_mode(mode)
     with _parent(path, create=True) as (fd, name):
         temporary = f".{name}.{uuid.uuid4().hex}.tmp"
         child = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, mode, dir_fd=fd)
         try:
             with os.fdopen(child, "wb") as stream:
                 stream.write(data)
-            _check(fd, name, expected_hash)
+                os.fchmod(stream.fileno(), mode)
+            _check(fd, name, expected_hash, expected_mode)
             os.replace(temporary, name, src_dir_fd=fd, dst_dir_fd=fd)
         finally:
             try:
@@ -95,7 +122,7 @@ def write_bytes(path: Path, data: bytes, mode: int = 0o600, *, expected_hash=_UN
                 pass
 
 
-def unlink(path: Path, *, expected_hash=_UNSET, directory: bool = False) -> None:
+def unlink(path: Path, *, expected_hash=_UNSET, expected_mode=_UNSET, directory: bool = False) -> None:
     with _parent(path) as (fd, name):
-        _check(fd, name, expected_hash)
+        _check(fd, name, expected_hash, expected_mode)
         (os.rmdir if directory else os.unlink)(name, dir_fd=fd)
