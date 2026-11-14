@@ -116,6 +116,29 @@ def test_lock_and_source_changes_change_fingerprint(project):
     assert v.snapshot(root, home)['digest'] != before['digest']
 
 
+def test_static_build_assets_are_hash_bound_without_reading_secret_names(project, monkeypatch):
+    root, home = project
+    (root / 'logo.png').write_bytes(b'\x89PNG\x00' + b'x' * (v.pm.MAX_FILE_BYTES + 1))
+    (root / 'logo.svg').write_text('<svg xmlns="http://www.w3.org/2000/svg"/>')
+    (root / 'font.woff2').write_bytes(b'wOF2\x00synthetic')
+    (root / 'credentials.png').write_bytes(b'CANARY_MUST_NOT_READ')
+    original = os.open
+    opened = []
+    def tracked(path, *args, **kwargs):
+        opened.append(str(path))
+        return original(path, *args, **kwargs)
+    monkeypatch.setattr(os, 'open', tracked)
+    before = v.snapshot(root, home)
+    assert before['complete']
+    assert {'logo.png', 'logo.svg', 'font.woff2'} <= before['hashes'].keys()
+    assert 'credentials.png' not in before['hashes']
+    assert not any(Path(path).name == 'credentials.png' for path in opened)
+    (root / 'font.woff2').write_bytes(b'wOF2\x00changed')
+    assert v.snapshot(root, home)['digest'] != before['digest']
+    (root / 'logo.png').write_bytes(b'x' * (v.MAX_ASSET_BYTES + 1))
+    assert not v.snapshot(root, home)['complete']
+
+
 def test_success_is_private_and_undoable(project):
     root, home = project
     result = v.verify(root, home, selection(), authorized=True, runner=FakeRunner())

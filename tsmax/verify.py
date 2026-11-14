@@ -32,6 +32,16 @@ MAX_CHECKS = 12
 MAX_OUTPUT = 64_000
 MAX_TIMEOUT = 1800
 KINDS = frozenset({'test', 'lint', 'typecheck', 'acceptance'})
+BINARY_ASSET_SUFFIXES = frozenset({'.png', '.jpg', '.jpeg', '.gif', '.webp', '.avif', '.ico', '.bmp',
+                                  '.woff', '.woff2', '.ttf', '.otf', '.eot'})
+ASSET_SUFFIXES = BINARY_ASSET_SUFFIXES | {'.svg'}
+MAX_ASSET_BYTES = 8_000_000
+
+
+def input_limit(rel):
+    return MAX_ASSET_BYTES if Path(rel).suffix.lower() in ASSET_SUFFIXES else pm.MAX_FILE_BYTES
+
+
 CONFIG_NAMES = frozenset({'package.json', 'pyproject.toml', 'pytest.ini', 'setup.cfg', 'tox.ini',
     'tsconfig.json', 'ruff.toml', '.ruff.toml', '.flake8', '.pylintrc', 'mypy.ini', '.mypy.ini',
     'pyrightconfig.json', '.eslintrc', '.eslintrc.json', '.eslintrc.js', '.eslintrc.cjs',
@@ -60,6 +70,10 @@ class VerifyPolicy(pm.Policy):
         # Dependency locks are verification inputs even though they are not map text.
         if reason == 'binary/unsupported extension' and Path(rel).name.lower() in CONFIG_NAMES:
             return None
+        # Build inputs include static images/fonts even though they are not map text.
+        # Path-based secret, generated and adapter exclusions still take precedence.
+        if reason == 'binary/unsupported extension' and Path(rel).suffix.lower() in ASSET_SUFFIXES:
+            return None
         if reason == 'generated file' and Path(rel).name.lower() in pm.GENERATED_NAMES:
             return None
         return reason
@@ -86,7 +100,7 @@ def snapshot(root: Path, home: Path, extra_files=()) -> dict:
         paths, skipped, limited = pm._walk(fd, policy)
         # Root check configuration and locks remain inputs even if Git ignores them.
         for name in CONFIG_NAMES | pm.GENERATED_NAMES | set(extra_files):
-            raw, reason = pm._read(fd, name, policy)
+            raw, reason = pm._read(fd, name, policy, max_bytes=input_limit(name))
             if reason == 'missing' and name not in extra_files:
                 continue
             if reason:
@@ -99,7 +113,7 @@ def snapshot(root: Path, home: Path, extra_files=()) -> dict:
             if len(hashes) >= policy.max_files:
                 limited = True
                 break
-            raw, reason = pm._read(fd, name, policy)
+            raw, reason = pm._read(fd, name, policy, max_bytes=input_limit(name))
             if reason:
                 skipped[reason] += 1
                 limited = True
